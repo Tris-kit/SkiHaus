@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { Share, Text, View } from "react-native";
-import { createInvite, listMembers, signOut, updateMember } from "../api";
+import { createInvite, listMembers, updateMember } from "../api";
 import { useAction, useLoad } from "../hooks";
 import { colors, spacing } from "../theme";
 import { Avatar, Banner, Button, Card, Field, Loading, RolePill, Row, Screen, SectionHeader } from "../ui";
@@ -134,12 +134,9 @@ export function PeopleScreen({
         </>
       )}
 
-      <Button
-        title="Sign out"
-        variant="secondary"
-        onPress={() => void signOut().then(onChanged)}
-        style={{ marginTop: spacing(3) }}
-      />
+      {/* Sign out lives in the home screen's menu, one tap away. Repeating it
+          at the bottom of a roster is the kind of stray destructive button
+          people hit by accident. */}
     </Screen>
   );
 }

@@ -9,9 +9,10 @@
 //      across a 27" monitor.
 
 import { Feather } from "@expo/vector-icons";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -43,6 +44,7 @@ export function Screen({
   subtitle,
   onBack,
   right,
+  menu,
   children,
   scroll = true,
 }: {
@@ -50,6 +52,8 @@ export function Screen({
   subtitle?: string;
   onBack?: () => void;
   right?: ReactNode;
+  /** Renders a hamburger at the top right that opens a sheet. */
+  menu?: MenuItem[];
   children: ReactNode;
   scroll?: boolean;
 }) {
@@ -65,6 +69,7 @@ export function Screen({
         {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
       </View>
       {right}
+      {menu && menu.length > 0 ? <HeaderMenu items={menu} /> : null}
     </View>
   ) : null;
 
@@ -96,6 +101,173 @@ export function Screen({
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[s.card, style]}>{children}</View>;
+}
+
+/**
+ * A bottom sheet. Used for the header menu and for pickers.
+ *
+ * Bottom-anchored rather than centred because it's reachable one-handed —
+ * these open from a header the thumb can't comfortably reach, so the content
+ * shouldn't land there too. Tapping the scrim closes; on web that's the only
+ * dismissal, since there's no back gesture.
+ */
+export function Sheet({
+  visible,
+  onClose,
+  title,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={s.scrim} onPress={onClose} accessibilityLabel="Close">
+        {/* Swallows taps so pressing the sheet itself doesn't dismiss it. */}
+        <Pressable style={s.sheet} onPress={() => {}}>
+          <View style={s.grabber} />
+          {title ? <Text style={s.sheetTitle}>{title}</Text> : null}
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+export type MenuItem = {
+  label: string;
+  icon: IconName;
+  onPress: () => void;
+  /** Renders in red and sits below a divider. */
+  destructive?: boolean;
+};
+
+function HeaderMenu({ items }: { items: MenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const normal = items.filter((i) => !i.destructive);
+  const danger = items.filter((i) => i.destructive);
+
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Menu"
+        style={({ pressed }) => [s.menuButton, pressed && { opacity: 0.5 }]}
+      >
+        <Icon name="menu" size={22} color={colors.primaryDeep} />
+      </Pressable>
+
+      <Sheet visible={open} onClose={() => setOpen(false)}>
+        {[...normal, ...danger].map((item, i) => (
+          <Pressable
+            key={item.label}
+            onPress={() => {
+              // Close first: leaving the sheet up while the screen changes
+              // underneath it looks like the tap didn't register.
+              setOpen(false);
+              item.onPress();
+            }}
+            style={({ pressed }) => [
+              s.menuRow,
+              i === normal.length && danger.length > 0 && s.menuDivider,
+              pressed && { backgroundColor: colors.surfaceAlt },
+            ]}
+          >
+            <Icon
+              name={item.icon}
+              size={19}
+              color={item.destructive ? colors.danger : colors.primaryDeep}
+            />
+            <Text
+              style={[
+                s.menuLabel,
+                item.destructive && { color: colors.danger, fontWeight: "500" },
+              ]}
+            >
+              {item.label}
+            </Text>
+          </Pressable>
+        ))}
+      </Sheet>
+    </>
+  );
+}
+
+/**
+ * A single-select field that opens a sheet.
+ *
+ * Used where the answer comes from a short known list — a season, say. A free
+ * text box there invites "26/27", "2026-2027" and "winter 26" for the same
+ * thing, and then nothing sorts or groups.
+ */
+export function Picker({
+  label,
+  value,
+  options,
+  onChange,
+  hint,
+  placeholder = "Choose…",
+}: {
+  label: string;
+  value: string | null;
+  options: Array<{ value: string; label: string; sub?: string }>;
+  onChange: (value: string) => void;
+  hint?: string;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <View style={{ marginBottom: spacing(2) }}>
+      <Text style={s.fieldLabel}>{label}</Text>
+      <Pressable
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        style={({ pressed }) => [s.input, s.pickerField, pressed && { opacity: 0.7 }]}
+      >
+        <Text style={{ fontSize: 16, color: selected ? colors.text : colors.textFaint }}>
+          {selected?.label ?? placeholder}
+        </Text>
+        <Icon name="chevron-down" size={18} color={colors.textDim} />
+      </Pressable>
+      {hint ? <Text style={s.hint}>{hint}</Text> : null}
+
+      <Sheet visible={open} onClose={() => setOpen(false)} title={label}>
+        <ScrollView style={{ maxHeight: 340 }}>
+          {options.map((o, i) => {
+            const on = o.value === value;
+            return (
+              <Pressable
+                key={o.value}
+                onPress={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                style={({ pressed }) => [
+                  s.menuRow,
+                  i > 0 && s.optionDivider,
+                  pressed && { backgroundColor: colors.surfaceAlt },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.menuLabel, on && { fontWeight: "700", color: colors.primary }]}>
+                    {o.label}
+                  </Text>
+                  {o.sub ? <Text style={s.rowSub}>{o.sub}</Text> : null}
+                </View>
+                {on ? <Icon name="check" size={19} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Sheet>
+    </View>
+  );
 }
 
 export function SectionHeader({ children, action }: { children: ReactNode; action?: ReactNode }) {
@@ -423,6 +595,66 @@ const s = StyleSheet.create({
   avatar: { alignItems: "center", justifyContent: "center" },
 
   banner: { borderRadius: radius.md, padding: spacing(1.5), marginBottom: spacing(2) },
+
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  scrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingTop: spacing(1),
+    paddingBottom: spacing(4), // clears the home indicator
+    paddingHorizontal: spacing(1),
+    // Matches Screen's column so the sheet doesn't span a wide browser.
+    width: "100%",
+    maxWidth: 460,
+    alignSelf: "center",
+  },
+  grabber: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: "center",
+    marginBottom: spacing(1.5),
+  },
+  sheetTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: colors.textDim,
+    paddingHorizontal: spacing(1.5),
+    marginBottom: spacing(0.5),
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(1.5),
+    paddingVertical: 15,
+    paddingHorizontal: spacing(1.5),
+    borderRadius: radius.md,
+  },
+  menuLabel: { fontSize: 16, color: colors.text, fontWeight: "500" },
+  menuDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    marginTop: spacing(0.5),
+    paddingTop: 15,
+  },
+  optionDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  pickerField: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 
   empty: { alignItems: "center", paddingVertical: spacing(5), gap: spacing(1) },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
