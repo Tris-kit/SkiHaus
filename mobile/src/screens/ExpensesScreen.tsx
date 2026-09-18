@@ -214,7 +214,7 @@ function Balances({
             ))}
           </Card>
           <Text style={{ fontSize: 12, color: colors.textFaint, marginTop: -spacing(1), marginBottom: spacing(2), lineHeight: 18 }}>
-            Ski House doesn&apos;t move money. Venmo each other, then record it so the ledger
+            SkiHaus doesn&apos;t move money. Venmo each other, then record it so the ledger
             keeps up.
           </Text>
         </>

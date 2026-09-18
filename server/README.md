@@ -23,8 +23,8 @@ npm run dev              # localhost:3000
 expected — in dev, run the UI from `mobile/` with `npm run web` (`:8081`) and
 let this serve the API.
 
-Without `RESEND_API_KEY`, magic links print to this terminal instead of
-sending. `/api/health` reports `mail: false` so you can tell that apart from a
+Without `RESEND_API_KEY`, confirmation and reset links print to this terminal
+instead of sending. `/api/health` reports `mail: false` so you can tell that apart from a
 production misconfiguration.
 
 ```bash
@@ -36,7 +36,7 @@ npm run check            # tsc --noEmit
 ```
 app/
   api/                 route handlers — see the table in ../CLAUDE.md
-  join/[token]/        route handler: burns a magic-link or invite token,
+  join/[token]/        route handler: burns a confirmation or invite token,
                        sets the cookie, redirects
   invite/[token]/      page: "Dave invited you to Cabin 12", + email form
   g/[token]/           page: a guest's no-login view of their stay
@@ -47,7 +47,8 @@ components/
   SignInForm.tsx       the only client component on this side
 lib/
   db.ts                the entire schema, created lazily at runtime
-  auth.ts              magic links, sessions, cookies
+  auth.ts              passwords, emailed tokens, sessions, cookies
+  password.ts          scrypt hashing — parameters and format documented there
   guard.ts             requireMember / requireRole — THE authorisation layer
   guests.ts            guest stays + guestView(), the guest privacy boundary
   invites.ts           invite preview and redemption

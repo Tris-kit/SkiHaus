@@ -2,7 +2,7 @@
   "name": "skihaus-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Ski House backend — accounts, houses, ledger, votes, guest links (Next.js on Vercel).",
+  "description": "SkiHaus backend — accounts, houses, ledger, votes, guest links (Next.js on Vercel).",
   "engines": { "node": "22.x" },
   "scripts": {
     "dev": "next dev",

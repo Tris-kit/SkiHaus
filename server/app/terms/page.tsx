@@ -2,19 +2,19 @@
 
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Terms · Ski House" };
+export const metadata: Metadata = { title: "Terms · SkiHaus" };
 
 export default function TermsPage() {
   return (
     <main className="page">
       <div className="card">
-        <div className="brand">Ski House</div>
+        <div className="brand">SkiHaus</div>
         <h1>Terms</h1>
         <p className="faint">Last updated 18 September 2026</p>
 
         <h2>What this is</h2>
         <p>
-          Ski House is a record-keeping tool for people sharing a seasonal lease. It tracks what
+          SkiHaus is a record-keeping tool for people sharing a seasonal lease. It tracks what
           was spent, what was decided, and who is staying when.
         </p>
 
@@ -33,7 +33,7 @@ export default function TermsPage() {
 
         <h2>Availability</h2>
         <p>
-          Ski House is provided as-is, with no warranty. We&apos;ll try to keep it up and keep
+          SkiHaus is provided as-is, with no warranty. We&apos;ll try to keep it up and keep
           your data intact, but keep your lease agreement somewhere else too.
         </p>
 

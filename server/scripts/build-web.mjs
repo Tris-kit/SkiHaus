@@ -101,8 +101,8 @@ const PWA_HEAD = `
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Ski House" />
-    <meta property="og:title" content="Ski House — run the lease, not the group text" />
+    <meta name="apple-mobile-web-app-title" content="SkiHaus" />
+    <meta property="og:title" content="SkiHaus — run the lease, not the group text" />
     <meta property="og:description" content="Expenses, votes, guest fees and who's skiing what. No download required." />
     <meta property="og:type" content="website" />
   `;

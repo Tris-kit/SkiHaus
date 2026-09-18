@@ -1,99 +1,116 @@
-// Sign in, sign up, or get a link emailed.
+// Email-first sign-in.
 //
-// Password is the default path because it works with no email infrastructure
-// at all — you can stand the whole app up with nothing but a database. The
-// magic link stays available for anyone who'd rather not have a password, and
-// it's the route back in when one is forgotten.
+//   email ─▶ check ─┬─ account exists      ─▶ password        ─▶ in
+//                   ├─ no account          ─▶ name + password ─▶ confirm email
+//                   └─ registered, unconfirmed ─▶ confirm email
+//
+// One field on the first screen. Nobody has to decide up front whether they
+// are signing in or signing up — the server already knows, so asking is just
+// making the person do the lookup for us.
+//
+// There is no magic-link sign-in. The only links we email are "confirm your
+// address" and "reset your password", both of which do something a password
+// can't.
+//
+// Mirrors server/components/SignInForm.tsx, which runs the same flow inline on
+// the invite page. Keep the two in step.
 
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import { register, requestSignInLink, signIn, verifyToken } from "../api";
+import { Image, Pressable, Text, View } from "react-native";
+import { checkEmail, register, requestPasswordReset, signIn, verifyToken } from "../api";
 import { useAction } from "../hooks";
 import { isWeb } from "../storage";
-import { colors, radius, spacing } from "../theme";
+import { colors, spacing } from "../theme";
 import { Banner, Button, Card, Field, Screen } from "../ui";
 import type { Session } from "../types";
 
-type Mode = "signin" | "signup" | "link";
+type Step = "email" | "password" | "create" | "verify" | "reset-sent";
 
 export function SignInScreen({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
-  const [mode, setMode] = useState<Mode>("signin");
+  const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [sent, setSent] = useState(false);
   const action = useAction();
 
-  function go() {
+  const addr = email.trim();
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr);
+
+  function submit() {
     void action.run(async () => {
-      if (mode === "signin") return onSignedIn(await signIn(email.trim(), password));
-      if (mode === "signup") return onSignedIn(await register(email.trim(), password, name.trim()));
-      await requestSignInLink(email.trim());
-      setSent(true);
+      if (step === "email") {
+        const r = await checkEmail(addr);
+        if (r.needsVerification) return setStep("verify");
+        // An account with no password predates password auth. "create" is
+        // the right destination — the server lets them set a first one
+        // because there's no current password to check against.
+        return setStep(r.exists && r.hasPassword ? "password" : "create");
+      }
+      if (step === "password") return onSignedIn(await signIn(addr, password));
+      if (step === "create") {
+        await register(addr, password, name.trim());
+        return setStep("verify");
+      }
     });
   }
 
-  function switchTo(next: Mode) {
-    setMode(next);
-    setSent(false);
+  function restart() {
+    setStep("email");
+    setPassword("");
     action.clear();
   }
 
-  const emailLooksOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const canSubmit =
-    mode === "link" ? emailLooksOk : emailLooksOk && password.length >= 8;
+    step === "email"
+      ? emailOk
+      : step === "password"
+        ? password.length > 0
+        : name.trim().length > 0 && password.length >= 8;
 
   return (
     <Screen>
-      <View style={{ paddingTop: spacing(5), paddingBottom: spacing(3) }}>
+      <View style={{ alignItems: "center", paddingTop: spacing(5), paddingBottom: spacing(3) }}>
+        <Image
+          source={require("../../assets/icon.png")}
+          // Square source; the radius is iOS's squircle approximation so it
+          // reads as an app icon rather than a photo.
+          style={{ width: 84, height: 84, borderRadius: 19 }}
+          accessibilityLabel="SkiHaus"
+        />
         <Text
           style={{
-            fontSize: 13,
-            fontWeight: "700",
-            letterSpacing: 1.2,
-            textTransform: "uppercase",
-            color: colors.primary,
+            fontSize: 28,
+            fontWeight: "800",
+            color: colors.text,
+            marginTop: spacing(2),
+            letterSpacing: -0.5,
           }}
         >
-          Ski House
+          SkiHaus
         </Text>
-        <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text, marginTop: spacing(1) }}>
-          Run the lease,{"\n"}not the group text.
-        </Text>
-        <Text style={{ fontSize: 15, color: colors.textDim, marginTop: spacing(1.5), lineHeight: 22 }}>
-          Expenses, votes, guest fees and who&apos;s skiing what — in one place everyone can
-          actually see.
+        <Text
+          style={{
+            fontSize: 15,
+            color: colors.textDim,
+            marginTop: spacing(0.5),
+            textAlign: "center",
+            lineHeight: 22,
+          }}
+        >
+          Run the lease, not the group text.
         </Text>
       </View>
 
       <Card style={{ paddingVertical: spacing(2.5) }}>
-        {sent ? (
+        {step === "verify" || step === "reset-sent" ? (
           <CheckYourEmail
-            email={email}
+            kind={step}
+            email={addr}
             onSignedIn={onSignedIn}
-            onRestart={() => switchTo("signin")}
+            onBack={restart}
           />
         ) : (
           <>
-            <Segmented
-              value={mode}
-              onChange={switchTo}
-              options={[
-                { value: "signin", label: "Sign in" },
-                { value: "signup", label: "Create account" },
-              ]}
-            />
-
-            {mode === "signup" && (
-              <Field
-                label="Your name"
-                value={name}
-                onChangeText={setName}
-                placeholder="Tristan"
-                autoCapitalize="words"
-              />
-            )}
-
             <Field
               label="Email"
               value={email}
@@ -101,39 +118,61 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (s: Session) => void 
               placeholder="you@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
+              // Locked once we've looked it up — changing it here would leave
+              // the screen showing a password box for a different account.
+              editable={step === "email"}
             />
 
-            {mode !== "link" && (
+            {step === "create" && (
               <Field
-                label="Password"
+                label="Your name"
+                value={name}
+                onChangeText={setName}
+                placeholder="Tristan"
+                autoCapitalize="words"
+                hint="What your housemates will see."
+              />
+            )}
+
+            {step !== "email" && (
+              <Field
+                label={step === "create" ? "Choose a password" : "Password"}
                 value={password}
                 onChangeText={setPassword}
-                placeholder="At least 8 characters"
+                placeholder={step === "create" ? "At least 8 characters" : ""}
                 secureTextEntry
                 autoCapitalize="none"
-                hint={mode === "signup" ? "Eight characters minimum. That's the only rule." : undefined}
+                hint={step === "create" ? "Eight characters minimum. That's the only rule." : undefined}
               />
             )}
 
             {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
 
             <Button
-              title={mode === "signup" ? "Create account" : "Sign in"}
-              onPress={go}
+              title={
+                step === "email" ? "Continue" : step === "create" ? "Create account" : "Sign in"
+              }
+              onPress={submit}
               busy={action.busy}
               disabled={!canSubmit}
             />
 
-            <Pressable onPress={() => switchTo("link")} style={{ marginTop: spacing(2) }}>
-              <Text style={{ fontSize: 13, color: colors.primary, textAlign: "center" }}>
-                {mode === "link" ? "Use a password instead" : "Email me a sign-in link instead"}
-              </Text>
-            </Pressable>
-
-            {mode === "link" && (
-              <Text style={{ fontSize: 12, color: colors.textFaint, marginTop: spacing(1), lineHeight: 18, textAlign: "center" }}>
-                No password needed — we&apos;ll send a link that signs you in.
-              </Text>
+            {step !== "email" && (
+              <View style={{ marginTop: spacing(2), gap: spacing(1) }}>
+                {step === "password" && (
+                  <Link
+                    onPress={() =>
+                      void action.run(async () => {
+                        await requestPasswordReset(addr);
+                        setStep("reset-sent");
+                      })
+                    }
+                  >
+                    Forgot your password?
+                  </Link>
+                )}
+                <Link onPress={restart}>Use a different email</Link>
+              </View>
             )}
           </>
         )}
@@ -147,28 +186,37 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (s: Session) => void 
 }
 
 function CheckYourEmail({
+  kind,
   email,
   onSignedIn,
-  onRestart,
+  onBack,
 }: {
+  kind: "verify" | "reset-sent";
   email: string;
   onSignedIn: (s: Session) => void;
-  onRestart: () => void;
+  onBack: () => void;
 }) {
   const [pasted, setPasted] = useState("");
   const action = useAction();
+  const verifying = kind === "verify";
 
   return (
     <>
-      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Check your email</Text>
+      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+        {verifying ? "Confirm your email" : "Check your email"}
+      </Text>
       <Text style={{ fontSize: 14, color: colors.textDim, marginTop: 6, lineHeight: 20 }}>
-        We sent a link to {email}. It works once and expires in 20 minutes.
+        {verifying
+          ? `We sent a link to ${email}. Tap it and you're in — your account isn't active until you do.`
+          : `If there's an account for ${email}, a reset link is on its way. It works once and expires in 20 minutes.`}
       </Text>
 
-      {/* Native only. On web the emailed link navigates to /join/<token>,
-          which sets the cookie server-side — nothing to paste. The native app
-          has no such navigation until universal links are configured. */}
-      {!isWeb && (
+      {/* Native only, and not for resets — a reset link opens a web page that
+          collects the new password, so there's nothing to paste here. On web
+          the link navigates to /join/<token> and the cookie is set
+          server-side; the native app has no such navigation until universal
+          links are configured. */}
+      {!isWeb && verifying && (
         <View style={{ marginTop: spacing(3) }}>
           <Field
             label="Or paste the link here"
@@ -179,67 +227,28 @@ function CheckYourEmail({
           />
           {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
           <Button
-            title="Sign in"
+            title="Continue"
             busy={action.busy}
             disabled={!pasted.trim()}
             onPress={() =>
-              void action.run(async () => onSignedIn(await verifyToken(extractToken(pasted.trim()))))
+              void action.run(async () =>
+                onSignedIn(await verifyToken(extractToken(pasted.trim()))),
+              )
             }
           />
         </View>
       )}
 
-      <Button
-        title="Back"
-        variant="secondary"
-        onPress={onRestart}
-        style={{ marginTop: spacing(1.5) }}
-      />
+      <Button title="Back" variant="secondary" onPress={onBack} style={{ marginTop: spacing(1.5) }} />
     </>
   );
 }
 
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: Array<{ value: T; label: string }>;
-}) {
+function Link({ children, onPress }: { children: React.ReactNode; onPress: () => void }) {
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        gap: 4,
-        backgroundColor: colors.surfaceAlt,
-        borderRadius: radius.md,
-        padding: 4,
-        marginBottom: spacing(2.5),
-      }}
-    >
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            style={{
-              flex: 1,
-              paddingVertical: 9,
-              borderRadius: radius.sm,
-              backgroundColor: on ? colors.surface : colors.transparent,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ fontSize: 14, fontWeight: "600", color: on ? colors.primaryDeep : colors.textDim }}>
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+    <Pressable onPress={onPress}>
+      <Text style={{ fontSize: 13, color: colors.primary, textAlign: "center" }}>{children}</Text>
+    </Pressable>
   );
 }
 

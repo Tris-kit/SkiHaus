@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Your stay · Ski House",
+  title: "Your stay · SkiHaus",
   // A private capability link must never be indexed, and the OS share sheet
   // shouldn't produce a preview card with someone's dates in it.
   robots: { index: false, follow: false },
@@ -36,7 +36,7 @@ export default async function GuestPage({ params }: { params: Promise<{ token: s
     return (
       <main className="page">
         <div className="card">
-          <div className="brand">Ski House</div>
+          <div className="brand">SkiHaus</div>
           <h1>This link isn&apos;t active</h1>
           <p className="dim">
             The stay may have been cancelled or the link replaced. Ask your host for a new one.
@@ -52,7 +52,7 @@ export default async function GuestPage({ params }: { params: Promise<{ token: s
   return (
     <main className="page">
       <div className="card">
-        <div className="brand">Ski House</div>
+        <div className="brand">SkiHaus</div>
         <h1>{house.name}</h1>
         <p className="faint" style={{ marginBottom: 20 }}>
           {[house.location, house.season].filter(Boolean).join(" · ")}
@@ -95,7 +95,7 @@ export default async function GuestPage({ params }: { params: Promise<{ token: s
         </div>
         {stay.feeCents > 0 && stay.paidAt == null && (
           <p className="faint" style={{ marginTop: 12 }}>
-            Settle up with {hostName} directly — Ski House only keeps the record.
+            Settle up with {hostName} directly — SkiHaus only keeps the record.
           </p>
         )}
 

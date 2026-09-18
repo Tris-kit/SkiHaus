@@ -108,13 +108,23 @@ export async function pingBackend(timeoutMs = 4000): Promise<Health | null> {
 
 // --- auth -------------------------------------------------------------------
 
-/** Ask for a sign-in link. Always resolves — never reveals whether the
- *  address has an account. */
-export async function requestSignInLink(email: string, next?: string): Promise<void> {
-  await post("/api/auth/request", { email, next });
-}
-
 type AuthResponse = Session & { sessionToken: string };
+
+export type EmailCheck = {
+  exists: boolean;
+  hasPassword: boolean;
+  /** Registered but never confirmed the address. */
+  needsVerification: boolean;
+};
+
+/**
+ * Email-first step one: does this address have an account?
+ *
+ * Yes, this tells anyone who asks. See the note in
+ * server/app/api/auth/check/route.ts — it's a deliberate trade for the flow,
+ * not an oversight, and it's the only endpoint here that leaks it.
+ */
+export const checkEmail = (email: string) => post<EmailCheck>("/api/auth/check", { email });
 
 /** Sign in with email and password. Throws ApiError(401) on a bad pair. */
 export async function signIn(email: string, password: string): Promise<Session> {
@@ -123,13 +133,28 @@ export async function signIn(email: string, password: string): Promise<Session> 
   return { user: res.user, houses: res.houses };
 }
 
-/** Create an account and sign in. Throws ApiError(400) if the email is taken. */
+/**
+ * Create an account. Does NOT sign you in — the address has to be confirmed
+ * first, so the caller should show "check your email".
+ * Throws ApiError(400) if the email is already taken.
+ */
 export async function register(
   email: string,
   password: string,
   name?: string,
-): Promise<Session> {
-  const res = await post<AuthResponse>("/api/auth/register", { email, password, name });
+): Promise<{ verificationRequired: true }> {
+  await post<{ ok: true }>("/api/auth/register", { email, password, name });
+  return { verificationRequired: true };
+}
+
+/** Ask for a password-reset link. Always resolves, account or not. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await post("/api/auth/reset/request", { email });
+}
+
+/** Finish a reset with the token from the emailed link. Signs you in. */
+export async function resetPassword(token: string, password: string): Promise<Session> {
+  const res = await post<AuthResponse>("/api/auth/reset", { token, password });
   await setSessionToken(res.sessionToken);
   return { user: res.user, houses: res.houses };
 }
@@ -145,15 +170,17 @@ export async function setAccountPassword(
     password,
     currentPassword,
   });
-  // The server rotates the session if it couldn't identify the caller's own
-  // token to spare (native app with no cookie and no bearer, e.g. right after
-  // a magic link).
+  // Changing a password evicts every other session. If the server couldn't
+  // tell which one is ours — no cookie and no bearer — it issues a fresh one
+  // rather than signing us out of the change we just made.
   if (res.sessionToken) await setSessionToken(res.sessionToken);
 }
 
 /**
- * Exchange a magic-link token for a session (native only — on web, the
- * /join/:token page sets the cookie during navigation).
+ * Exchange an emailed confirmation token for a session.
+ *
+ * Native only: on web, /join/:token sets the cookie during navigation. Here
+ * the person pastes the link, because universal links aren't configured yet.
  */
 export async function verifyToken(token: string): Promise<Session> {
   const res = await post<Session & { sessionToken: string }>("/api/auth/verify", { token });

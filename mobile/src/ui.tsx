@@ -194,6 +194,7 @@ export function Field({
   autoCapitalize,
   multiline,
   secureTextEntry,
+  editable = true,
   hint,
 }: {
   label: string;
@@ -204,6 +205,8 @@ export function Field({
   autoCapitalize?: "none" | "sentences" | "words";
   multiline?: boolean;
   secureTextEntry?: boolean;
+  /** Read-only fields are tinted so "locked" reads as deliberate, not broken. */
+  editable?: boolean;
   hint?: string;
 }) {
   return (
@@ -219,12 +222,17 @@ export function Field({
         autoCorrect={autoCapitalize === "none" ? false : undefined}
         multiline={multiline}
         secureTextEntry={secureTextEntry}
+        editable={editable}
         // Lets iOS and the browser offer to save and fill the credential.
         // Without it, password managers ignore the field and people reuse
         // something they can remember instead.
         textContentType={secureTextEntry ? "password" : undefined}
         autoComplete={secureTextEntry ? "current-password" : undefined}
-        style={[s.input, multiline && { minHeight: 96, textAlignVertical: "top" }]}
+        style={[
+          s.input,
+          multiline && { minHeight: 96, textAlignVertical: "top" },
+          !editable && { backgroundColor: colors.surfaceAlt, color: colors.textDim },
+        ]}
       />
       {hint ? <Text style={s.hint}>{hint}</Text> : null}
     </View>

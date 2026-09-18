@@ -1,8 +1,12 @@
 // GET /join/:token — the one URL every email in this app points at.
 //
-// It handles two kinds of token and decides which by trying them in order:
+// It handles every kind of token we email, and decides which by trying them
+// in order:
 //
-//   1. a magic sign-in token  → burn it, open a session, continue to `next`
+//   0. a password-reset token → forward to /reset/:token, unconsumed, because
+//                               that page still has to collect a password
+//   1. a sign-in or email-confirmation token → burn it, open a session,
+//                               continue to `next`
 //   2. an invite token        → if signed in, join the house; if not, send the
 //                               person to /invite/:token to identify themselves
 //
@@ -13,7 +17,7 @@
 // lives at /invite/:token.
 
 import { NextResponse } from "next/server";
-import { consumeLoginToken, createSession, currentUser, setSessionCookie } from "@/lib/auth";
+import { consumeEmailToken, createSession, currentUser, peekEmailToken, setSessionCookie } from "@/lib/auth";
 import { previewInvite, redeemInvite } from "@/lib/invites";
 import { originFrom } from "@/lib/http";
 
@@ -26,13 +30,24 @@ export async function GET(req: Request, { params }: Params) {
   const origin = originFrom(req);
 
   try {
-    // 1. A sign-in link.
-    const login = await consumeLoginToken(token);
-    if (login) {
-      const sessionToken = await createSession(login.user.id, req.headers.get("user-agent"));
+    // 0. A reset link belongs to /reset, which needs to collect a new
+    //    password. Hand it over without consuming it.
+    const peeked = await peekEmailToken(token);
+    if (peeked?.purpose === "reset") {
+      return NextResponse.redirect(`${origin}/reset/${token}`);
+    }
+
+    // 1. A sign-in or email-confirmation link. Both end the same way — a
+    //    session — and both prove control of the address, so consumeEmailToken
+    //    marks the address verified either way. Confirming your email signs
+    //    you straight in rather than bouncing you to a login form you already
+    //    filled in once.
+    const claimed = await consumeEmailToken(token);
+    if (claimed && claimed.purpose !== "reset") {
+      const sessionToken = await createSession(claimed.user.id, req.headers.get("user-agent"));
       // `next` was validated to be a relative path when the token was minted,
       // so this cannot be turned into an open redirect.
-      const dest = login.nextPath ?? "/";
+      const dest = claimed.nextPath ?? "/";
       return setSessionCookie(NextResponse.redirect(`${origin}${dest}`), sessionToken);
     }
 

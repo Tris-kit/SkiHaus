@@ -1,23 +1,24 @@
 // POST /api/auth/register  { email, password, name? }
-//   -> { user, houses, sessionToken }   201
+//   -> { ok: true, verificationRequired: true }   202
 //
-// Creates an account and signs it in. Registration is open, exactly as the
-// magic-link path already was — anyone who can request a sign-in link can
-// create an account, so requiring an invite here would add friction without
-// adding a boundary. What actually gates access is house membership, and that
-// still only comes from an invite.
+// Creates an account and emails a confirmation link. **Does not sign you in.**
+// The account exists but cannot be used until the address is confirmed.
 //
-// NOTE ON UNVERIFIED EMAIL. An account made this way has no proof it controls
-// the address. An invite addressed to a specific person is matched on email
-// (redeemInvite), so in principle someone who knew both a housemate's address
-// and that an invite was coming could register it first and take the seat.
-// Accepted for now: it needs a targeted attacker who already knows both facts,
-// against a twelve-person ski house. `email_verified_at` is recorded when a
-// magic link is used, so tightening redemption to verified addresses later is
-// a one-line change and needs no backfill.
+// WHY ENFORCE IT. An invite addressed to a specific person is matched on email
+// (redeemInvite). If anyone could register any address, someone who knew both
+// a housemate's address and that an invite was coming could register it first
+// and take the seat. Requiring confirmation closes that: you can only hold an
+// address you can actually read mail at.
+//
+// THE COST, STATED PLAINLY. This puts email back on the critical path.
+// Registration is impossible when RESEND_API_KEY is unset — the link is
+// logged to the server console instead, which is workable locally and
+// awkward on Vercel (it lands in function logs). /api/health reports
+// `mail: false` precisely so this is diagnosable.
 
-import { createSession, emailExists, sessionPayload, setPassword, setSessionCookie, upsertUserByEmail } from "@/lib/auth";
-import { badRequest, body, handle, json } from "@/lib/http";
+import { createEmailToken, emailExists, setPassword, upsertUserByEmail } from "@/lib/auth";
+import { badRequest, body, handle, json, originFrom } from "@/lib/http";
+import { sendMail, verifyEmail } from "@/lib/mail";
 import { clientIp, limitOrThrow } from "@/lib/rateLimit";
 import { email as parseEmail, optStr, password as parsePassword } from "@/lib/validate";
 
@@ -32,10 +33,9 @@ export async function POST(req: Request) {
     const password = parsePassword(raw.password);
     const name = optStr(raw.name, "Name", 80) ?? "";
 
-    // Unlike the sign-in endpoints, this one may say the address is taken:
-    // "pick another email" is unavoidable information, and every signup form
-    // on the internet leaks it. The endpoints that *aren't* allowed to leak it
-    // are /login and /auth/request, and they don't.
+    // Registration is allowed to reject a duplicate — "pick another email" is
+    // unavoidable, and every signup form leaks it. The endpoints that must
+    // NOT leak it are /login and /auth/request, and they don't.
     if (await emailExists(email)) {
       throw badRequest("There's already an account with that email. Try signing in.");
     }
@@ -43,9 +43,13 @@ export async function POST(req: Request) {
     const user = await upsertUserByEmail(email, name);
     await setPassword(user.id, password);
 
-    const sessionToken = await createSession(user.id, req.headers.get("user-agent"));
-    const session = await sessionPayload(user);
+    const { token, minutes } = await createEmailToken(email, "verify");
+    await sendMail({
+      to: email,
+      ...verifyEmail(`${originFrom(req)}/join/${token}`, Math.round(minutes / 60)),
+    });
 
-    return setSessionCookie(json({ ...session, sessionToken }, 201), sessionToken);
+    // 202, not 201: the account is created but deliberately not yet usable.
+    return json({ ok: true, verificationRequired: true, email }, 202);
   });
 }

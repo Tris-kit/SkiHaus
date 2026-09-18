@@ -8,9 +8,9 @@ the counts below are checked.
 ## Name (≤30)
 
 ```
-Ski House
+SkiHaus
 ```
-`9`
+`7`
 
 ## Subtitle (≤30)
 
@@ -36,14 +36,14 @@ ski,lease,share,house,expenses,split,rental,chalet,cabin,roommate,housemate,vote
 ## Description
 
 ```
-Ski House is for the person who ends up running the lease — and everyone who'd rather they didn't have to.
+SkiHaus is for the person who ends up running the lease — and everyone who'd rather they didn't have to.
 
 A shared ski house is a small organisation nobody wants to manage. One person fronts the plow bill and chases people in March. Guest fees get improvised. "Should we re-up next season?" dies in a group text. The actual lease agreement lives in someone's email.
 
-Ski House replaces the group text and the spreadsheet with one place that has a memory.
+SkiHaus replaces the group text and the spreadsheet with one place that has a memory.
 
 THE LEDGER
-Record what the house spends, categorised, with receipts. Everyone sees their own share and a running balance, and the app works out who owes whom. Ski House never touches your money — you settle up however you already do, then write it down.
+Record what the house spends, categorised, with receipts. Everyone sees their own share and a running balance, and the app works out who owes whom. SkiHaus never touches your money — you settle up however you already do, then write it down.
 
 GUEST FEES THAT ACTUALLY GET COLLECTED
 Set a rate schedule once — weekend nights, weeknights, per person. A member requests a guest, the app prices the stay, and the manager approves it. The guest gets a private link with their dates, what they owe, the address and the house rules. They never download anything or make an account.
@@ -98,13 +98,13 @@ in-app purchases.
 Data collected and **linked to the user**:
 
 - **Contact info — email address.** Used for: App Functionality (it *is* the
-  account and how sign-in links are delivered). Not used for tracking.
+  account, and where confirmation and password-reset links are sent). Not used for tracking.
 - **Contact info — name.** App Functionality. Optional.
 - **User content — other.** Expenses, votes, documents and stays the user
   enters. App Functionality.
 
 Not collected: location, contacts, photos, browsing history, identifiers,
-diagnostics, purchases, financial info (Ski House records amounts people type
+diagnostics, purchases, financial info (SkiHaus records amounts people type
 in; it has no payment credentials and no bank connection).
 
 Tracking: **No.** No third-party SDKs, no advertising identifier, no analytics.
@@ -112,15 +112,18 @@ Tracking: **No.** No third-party SDKs, no advertising identifier, no analytics.
 ## Review notes
 
 ```
-Ski House is a shared-expense and coordination tool for people renting a ski house together for a season.
+SkiHaus is a shared-expense and coordination tool for people renting a ski house together for a season.
 
 The whole app also runs at https://<domain> in a browser, so you can review it without a build if that's easier.
 
-To sign in: enter any email address on the first screen and we send a one-time link — there are no passwords. For review, use the demo account below, which is already a manager of a populated house.
+To sign in: enter an email address on the first screen. SkiHaus looks it up and then asks for your password, or asks you to pick a name and create one. New accounts confirm the address by email before they can be used.
 
-  Demo email: <set up before submitting>
+For review, use the demo account below. It is already confirmed and is a manager of a populated house.
 
-Note on payments: Ski House does not process payments. It records who spent what and computes balances; people settle up outside the app via Venmo, Zelle or cash. There are no in-app purchases and no payment credentials are collected.
+  Demo email:    <set up before submitting>
+  Demo password: <set up before submitting>
+
+Note on payments: SkiHaus does not process payments. It records who spent what and computes balances; people settle up outside the app via Venmo, Zelle or cash. There are no in-app purchases and no payment credentials are collected.
 
 Guest links (/g/<token>) are unguessable capability URLs that let a house's guest view their own stay without an account. They expose only that guest's dates, fee and the house rules.
 ```

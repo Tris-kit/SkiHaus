@@ -1,5 +1,5 @@
 # Typecheck both packages and run the hand-rolled test scripts.
-# Split never had CI; this is the one place Ski House deliberately diverges.
+# Split never had CI; this is the one place SkiHaus deliberately diverges.
 name: check
 
 on:

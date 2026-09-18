@@ -1,4 +1,4 @@
-# Releasing Ski House
+# Releasing SkiHaus
 
 Two branches, two Vercel environments, one App Store app. Same shape as Split.
 

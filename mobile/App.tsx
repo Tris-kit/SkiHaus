@@ -1,4 +1,4 @@
-// Ski House — one screen at a time.
+// SkiHaus — one screen at a time.
 //
 // NAVIGATION: no navigation library, same as Split. `App.tsx` is a single
 // useState<Step> machine. Adding a screen means adding a Step, a render

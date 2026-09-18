@@ -1,5 +1,5 @@
 // Central style tokens so the whole app looks like one system.
-// Ski House — cool light theme: snow-white canvas, alpine-blue accents,
+// SkiHaus — cool light theme: snow-white canvas, alpine-blue accents,
 // deep-navy ink.
 //
 // NEVER HARD-CODE A COLOUR. If a value isn't here, add it here.

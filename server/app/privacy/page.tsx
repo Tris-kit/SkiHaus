@@ -3,13 +3,13 @@
 
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Privacy · Ski House" };
+export const metadata: Metadata = { title: "Privacy · SkiHaus" };
 
 export default function PrivacyPage() {
   return (
     <main className="page">
       <div className="card">
-        <div className="brand">Ski House</div>
+        <div className="brand">SkiHaus</div>
         <h1>Privacy</h1>
         <p className="faint">Last updated 18 September 2026</p>
 
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
 
         <h2>What we don&apos;t</h2>
         <p>
-          No passwords — sign-in is a one-time emailed link. No payment card details; Ski House
+          No passwords — sign-in is a one-time emailed link. No payment card details; SkiHaus
           records who owes what and never moves money. No location tracking, no advertising
           identifiers, no third-party analytics.
         </p>

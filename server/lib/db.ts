@@ -60,10 +60,16 @@ const SCHEMA: string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
 
-  // Single-use email sign-in tokens.
+  // Single-use tokens we email. `purpose` keeps them from being
+  // interchangeable: a sign-in link must not be redeemable as a password
+  // reset, or forwarding one email would hand over the account.
+  //   'signin' — magic-link sign-in
+  //   'verify' — confirm the address on a new registration
+  //   'reset'  — set a new password without knowing the old one
   `CREATE TABLE IF NOT EXISTS login_tokens (
      token_hash TEXT PRIMARY KEY,
      email TEXT NOT NULL,
+     purpose TEXT NOT NULL DEFAULT 'signin',
      next_path TEXT,
      created_at INTEGER NOT NULL,
      expires_at INTEGER NOT NULL,
@@ -417,6 +423,21 @@ const MIGRATIONS: string[] = [
   // have a `users` table, and CREATE TABLE IF NOT EXISTS won't alter it.
   `ALTER TABLE users ADD COLUMN password_hash TEXT`,
   `ALTER TABLE users ADD COLUMN email_verified_at INTEGER`,
+
+  // Added when reset and verification links landed.
+  `ALTER TABLE login_tokens ADD COLUMN purpose TEXT NOT NULL DEFAULT 'signin'`,
+
+  // Backfill, not a schema change. An account with no password can only have
+  // been created by following a link we emailed, which proves control of the
+  // address — so it is verified, it just predates the column. Without this,
+  // enforcing verification at login would lock out every existing user.
+  //
+  // Safe to re-run on every cold start: it only ever touches passwordless
+  // accounts, and those are verified by construction. It cannot promote a
+  // freshly registered, deliberately-unverified account, because that one has
+  // a password.
+  `UPDATE users SET email_verified_at = created_at
+     WHERE email_verified_at IS NULL AND password_hash IS NULL`,
 ];
 
 async function ensureSchema(c: Client): Promise<void> {

@@ -1,4 +1,4 @@
-# Ski House
+# SkiHaus
 
 Ski-lease management. One manager, a roster of members, and guests who show up
 for a weekend — sharing a ledger, a decision log, a fee schedule and a
@@ -41,7 +41,7 @@ cd server && node scripts/gen-icons.mjs   # regenerate the icon set
 check and `process.exit(1)` on failure. There is no test framework and no
 linter config. There **is** CI (`.github/workflows/check.yml`), which runs
 `check` and `test` on both packages; Split had none, and this is the one place
-Ski House deliberately diverges from it.
+SkiHaus deliberately diverges from it.
 
 ## The one architectural idea
 
@@ -62,10 +62,12 @@ in `server/app/`.
 
 Two credential systems, on purpose.
 
-**Accounts** (admins, members): email + password, or an email magic link.
-Both land on the same account and neither is required — an account may have a
-password, a verified email, or both. Nothing is ever gated on having a
-password.
+**Accounts** (admins, members): email-first, with a password.
+
+`POST /api/auth/check` answers "does this address have an account?", and the
+client then shows either a password box or a name-and-new-password box.
+There is **no magic-link sign-in** — it was removed. The only links emailed
+now are address confirmation and password reset.
 
 - `POST /api/auth/register` / `POST /api/auth/login` — the password path.
   Hashing is scrypt from Node core; `server/lib/password.ts` documents the
@@ -160,7 +162,9 @@ unless there's a reason that survives a second look.
 | Route | Notes |
 | --- | --- |
 | `GET /api/health` | `{ ok, service, storage, mail }` — booleans only, never a configured value |
-| `POST /api/auth/request` | Mails a magic link. Always 200, even for unknown addresses |
+| `POST /api/auth/check` | `{ exists, hasPassword, needsVerification }`. An enumeration oracle, deliberately — see the route |
+| `POST /api/auth/reset/request` | Always 200, even for unknown addresses |
+| `GET\|POST /api/auth/reset` | Peek a reset token / spend it and sign in |
 | `POST /api/auth/verify` | Native only — web goes through `/join/:token` |
 | `GET\|PATCH /api/auth/session` | Current user + houses; profile edit |
 | `GET\|POST /api/houses` | List mine / create (creator becomes admin, categories seeded) |
@@ -283,7 +287,7 @@ Full runbook: **[RELEASING.md](RELEASING.md)**.
 - **No domain yet.** `mobile/.env`, `mobile/eas.json` and
   `server/middleware.ts` all carry `REPLACE-…` placeholders that must be set
   before the first production build.
-- **No `ascAppId`** — Ski House needs its own App Store Connect record. The
+- **No `ascAppId`** — SkiHaus needs its own App Store Connect record. The
   Apple ID and team ID are shared with Split and are correct as written.
 - **No `eas.extra.projectId`** — run `eas init` in `mobile/`.
 - **No push notifications and no email digests.** The `announcements` and
@@ -320,6 +324,7 @@ Full runbook: **[RELEASING.md](RELEASING.md)**.
   screenshotting available from here.
 - Without `TURSO_DATABASE_URL`, every API route that touches data throws. `npm
   run server` still boots and `/api/health` reports `storage: false`.
-- Without `RESEND_API_KEY`, magic links are printed to the server console
-  instead of emailed. That's the intended local-dev path — copy the URL out of
-  the terminal.
+- Without `RESEND_API_KEY`, confirmation and reset links are printed to the
+  server console instead of emailed. Fine locally — copy the URL out of the
+  terminal. **Not fine in production:** registration confirms the address by
+  email, so nobody can finish signing up.

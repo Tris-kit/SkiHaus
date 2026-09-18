@@ -1,6 +1,6 @@
 {
-  "name": "Ski House",
-  "short_name": "Ski House",
+  "name": "SkiHaus",
+  "short_name": "SkiHaus",
   "description": "Run a ski lease without the group text.",
   "start_url": "/",
   "display": "standalone",

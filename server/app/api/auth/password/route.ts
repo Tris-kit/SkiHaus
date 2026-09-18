@@ -35,6 +35,8 @@ export async function POST(req: Request) {
 
     if (await hasPassword(user.id)) {
       const current = str(raw.currentPassword, "Current password", { max: 200 });
+      // Only the credential matters here; the caller already holds a valid
+      // session, so their verification state is not this endpoint's business.
       if (!(await authenticate(user.email, current))) {
         throw forbidden("That's not your current password.");
       }

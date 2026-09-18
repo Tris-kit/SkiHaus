@@ -33,7 +33,7 @@ export function HousesScreen({
 
   return (
     <Screen
-      title="Ski House"
+      title="SkiHaus"
       subtitle={session.user.name || session.user.email}
       right={
         <Avatar

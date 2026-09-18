@@ -1,4 +1,4 @@
-# Ski House
+# SkiHaus
 
 Run a ski lease without the group text.
 
@@ -75,7 +75,8 @@ on failure.
 | Recording expenses, setting guest fees, running votes, inviting people | | | ● |
 
 A guest never makes an account — each stay gets a private link. Members and
-admins sign in with an emailed magic link; there are no passwords anywhere.
+admins sign in with an email and password. Enter your address, SkiHaus looks
+it up, and you either type your password or pick a name and create one.
 
 ## Status
 

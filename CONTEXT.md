@@ -1,4 +1,4 @@
-# Ski House — product context
+# SkiHaus — product context
 
 The single source of truth for *what this app is and why*. Architecture and
 conventions live in [CLAUDE.md](CLAUDE.md); release mechanics in
@@ -23,7 +23,7 @@ The recurring failures are always the same:
 | The lease is invisible | The actual document is a PDF in one person's email |
 | Logistics are guesswork | Who's driving up Friday? Is anyone at the house? Where are we eating? |
 
-Ski House replaces the group text and the spreadsheet with one place that has a
+SkiHaus replaces the group text and the spreadsheet with one place that has a
 memory.
 
 ## 2. What it is
@@ -114,7 +114,8 @@ Sees a narrow slice, usually without ever signing in (§6):
 
 ### MVP — what ships first
 
-1. **Accounts and houses.** Email magic-link sign-in. Create a house, invite
+1. **Accounts and houses.** Email-first sign-in with a password, confirmed by
+   email on registration. Create a house, invite
    people at a role, accept an invite.
 2. **Expenses and the ledger.** Manager categorises and records spending;
    everyone sees their share and their running balance. Settlements recorded by
@@ -163,7 +164,7 @@ Access follows the same philosophy, in two tiers:
 ### Why both
 
 The original design was magic-link only: no passwords to forget, no reset
-flow, no breach-response obligation. It is still the nicer experience.
+flow, no breach-response obligation.
 
 It has one hard failure mode, which showed up the first time the app was
 deployed: **it cannot work at all until transactional email does.** No Resend
@@ -181,7 +182,7 @@ required. Nothing is ever gated on having a password.
 
 ## 7. Money model
 
-**Ski House is a ledger, not a payment processor.** No Stripe, no card data, no
+**SkiHaus is a ledger, not a payment processor.** No Stripe, no card data, no
 PCI scope, no App Store in-app-purchase entanglement.
 
 - All money is **integer cents**, never floats.
@@ -213,7 +214,8 @@ Split has no notification infrastructure at all, so this is net-new.
 - **v1 — announcement feed.** Admins post announcements with an audience
   (`admin,member,guest`); the app shows an unread badge. Votes opening, guest
   stays being approved, and large expenses auto-generate feed entries.
-- **v1.1 — email.** Transactional email already exists for magic links (Resend);
+- **v1.1 — email.** Transactional email already exists for confirmation and
+  password resets (Resend);
   extending it to a weekly digest and vote-closing reminders is small.
 - **v1.1 — push.** Requires `expo-notifications`, an `aps-environment`
   entitlement, an APNs key on the existing Apple team, and the `push_tokens`
@@ -259,6 +261,6 @@ Things a future session should not silently decide:
 - **Who can see the lease?** `documents.visible_to` defaults to `admin,member`.
   Guests probably need house rules but not the rent figure — hence two documents
   rather than one.
-- **Domain name.** Split runs on `spwit.app`. Ski House has no domain yet;
+- **Domain name.** Split runs on `spwit.app`. SkiHaus has no domain yet;
   `NEXT_PUBLIC_BASE_URL` and the EAS profiles need one before the first
   production build.

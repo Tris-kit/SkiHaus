@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 // The token is looked up live; a cached render would show a stale invite.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Join a house · Ski House" };
+export const metadata: Metadata = { title: "Join a house · SkiHaus" };
 
 const ROLE_COPY: Record<string, string> = {
   admin: "a manager — you'll be able to record expenses, set guest fees and run votes",
@@ -32,7 +32,7 @@ export default async function InvitePage({
     return (
       <main className="page">
         <div className="card">
-          <div className="brand">Ski House</div>
+          <div className="brand">SkiHaus</div>
           <h1>This link has expired</h1>
           <p className="dim">
             Invite links last 30 days, and personal ones work only once. Ask whoever sent it to
@@ -46,7 +46,7 @@ export default async function InvitePage({
   return (
     <main className="page">
       <div className="card">
-        <div className="brand">Ski House</div>
+        <div className="brand">SkiHaus</div>
         <h1>
           {invite.inviterName} invited you to {invite.houseName}
         </h1>
@@ -54,9 +54,10 @@ export default async function InvitePage({
         <p className="dim">You&apos;re joining as {ROLE_COPY[invite.role] ?? invite.role}.</p>
 
         <div style={{ marginTop: 24 }}>
-          {/* After the emailed link is clicked, /join burns the login token and
-              forwards here again — this time signed in, so the invite redeems. */}
-          <SignInForm next={`/join/${token}`} presetEmail={invite.email} cta="Join the house" />
+          {/* Signs in or registers inline, then redeems the invite — so one
+              pass through this form takes someone from a link in a group text
+              to being in the house. */}
+          <SignInForm inviteToken={token} presetEmail={invite.email} />
         </div>
       </div>
     </main>

@@ -1,10 +1,11 @@
 // Transactional email via Resend, called with plain `fetch` rather than the
 // SDK — one less dependency, and the API is three fields wide.
 //
-// When RESEND_API_KEY is unset, mail is logged to the server console instead of
-// sent. That is the intended local-dev path: run `npm run server`, request a
-// sign-in link, and copy the URL out of the terminal. `GET /api/health` reports
-// `mail: false` so you can tell the difference from a production misconfig.
+// When RESEND_API_KEY is unset, mail is logged to the server console instead
+// of sent, and the URL can be copied out of the terminal. That is fine
+// locally and NOT fine in production: registration requires confirming an
+// address, so with no mail configured nobody can finish signing up.
+// `GET /api/health` reports `mail: false` so this is diagnosable.
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
@@ -16,7 +17,7 @@ type Mail = { to: string; subject: string; text: string; html?: string };
 
 export async function sendMail({ to, subject, text, html }: Mail): Promise<void> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM ?? "Ski House <onboarding@resend.dev>";
+  const from = process.env.MAIL_FROM ?? "SkiHaus <onboarding@resend.dev>";
 
   if (!key) {
     console.log(
@@ -51,7 +52,7 @@ export async function sendMail({ to, subject, text, html }: Mail): Promise<void>
 function shell(heading: string, bodyHtml: string): string {
   return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f5f9ff;padding:32px 16px;color:#0b1b2b">
   <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #dce7f5;border-radius:18px;padding:28px">
-    <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1d6fe0">Ski House</div>
+    <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1d6fe0">SkiHaus</div>
     <h1 style="font-size:20px;margin:12px 0 16px">${heading}</h1>
     ${bodyHtml}
   </div>
@@ -63,14 +64,32 @@ function button(url: string, label: string): string {
 <p style="font-size:13px;color:#5b7185;word-break:break-all">Or paste this into your browser:<br>${url}</p>`;
 }
 
-export function signInEmail(url: string, minutes: number): Omit<Mail, "to"> {
+// There is deliberately no sign-in-link template. Magic-link sign-in was
+// removed in favour of email-first password auth — the only links we email
+// now are "confirm your address" and "reset your password", both of which do
+// something a password can't.
+
+export function verifyEmail(url: string, hours: number): Omit<Mail, "to"> {
   return {
-    subject: "Your Ski House sign-in link",
-    text: `Tap to sign in to Ski House:\n\n${url}\n\nThis link works once and expires in ${minutes} minutes.\nIf you didn't ask for it, you can ignore this email.`,
+    subject: "Confirm your email for SkiHaus",
+    text: `Confirm your email address to finish setting up your SkiHaus account:\n\n${url}\n\nThis link expires in ${hours} hours.\nIf you didn't create an account, you can ignore this email — nothing was set up.`,
     html: shell(
-      "Sign in to Ski House",
-      button(url, "Sign in") +
-        `<p style="font-size:13px;color:#5b7185">This link works once and expires in ${minutes} minutes. If you didn't ask for it, ignore this email.</p>`,
+      "Confirm your email",
+      `<p style="margin:0;color:#5b7185">One tap and your account is ready.</p>` +
+        button(url, "Confirm email") +
+        `<p style="font-size:13px;color:#5b7185">This link expires in ${hours} hours. If you didn't create an account, ignore this email — nothing was set up.</p>`,
+    ),
+  };
+}
+
+export function resetPasswordEmail(url: string, minutes: number): Omit<Mail, "to"> {
+  return {
+    subject: "Reset your SkiHaus password",
+    text: `Choose a new password for SkiHaus:\n\n${url}\n\nThis link works once and expires in ${minutes} minutes.\n\nIf you didn't ask for this, ignore it — your password hasn't changed and nobody can get in without this link.`,
+    html: shell(
+      "Reset your password",
+      button(url, "Choose a new password") +
+        `<p style="font-size:13px;color:#5b7185">This link works once and expires in ${minutes} minutes. If you didn't ask for it, ignore this email — your password hasn't changed.</p>`,
     ),
   };
 }
@@ -88,7 +107,7 @@ export function inviteEmail(
     html: shell(
       `${inviterName} invited you to ${houseName}`,
       `<p style="margin:0;color:#5b7185">You've been added as ${asRole}.</p>` +
-        button(url, "Open Ski House") +
+        button(url, "Open SkiHaus") +
         `<p style="font-size:13px;color:#5b7185">No app download needed — it works in your browser.</p>`,
     ),
   };

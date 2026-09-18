@@ -2,7 +2,7 @@
   "name": "skihaus-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Ski House monorepo — mobile/ (Expo app: iPhone + web) and server/ (Next.js: API, public guest/invite pages, and hosts the web app).",
+  "description": "SkiHaus monorepo — mobile/ (Expo app: iPhone + web) and server/ (Next.js: API, public guest/invite pages, and hosts the web app).",
   "scripts": {
     "ios": "npm --prefix mobile run ios",
     "web": "npm --prefix mobile run web",

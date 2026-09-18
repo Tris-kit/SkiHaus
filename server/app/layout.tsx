@@ -6,7 +6,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Ski House",
+  title: "SkiHaus",
   description: "Run a ski lease without the group text.",
 };
 

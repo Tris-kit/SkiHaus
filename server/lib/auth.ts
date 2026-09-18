@@ -23,6 +23,7 @@ import type { Role, Session, User } from "./types";
 export const SESSION_COOKIE = "sh_session";
 
 const LOGIN_TOKEN_MINUTES = 20;
+const VERIFY_TOKEN_MINUTES = 60 * 24; // a day — people confirm later, elsewhere
 const SESSION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -81,7 +82,12 @@ export async function getUser(id: string): Promise<User | null> {
  * difference between those three is an oracle for which addresses are
  * registered.
  */
-export async function authenticate(email: string, password: string): Promise<User | null> {
+export type Authenticated = { user: User; emailVerified: boolean };
+
+export async function authenticate(
+  email: string,
+  password: string,
+): Promise<Authenticated | null> {
   const c = await db();
   const res = await c.execute({
     sql: "SELECT * FROM users WHERE email = ?",
@@ -98,6 +104,7 @@ export async function authenticate(email: string, password: string): Promise<Use
   if (!(await verifyPassword(password, stored))) return null;
 
   const user = rowToUser(row);
+  const emailVerified = row.email_verified_at != null;
 
   // Opportunistic upgrade: if the stored hash predates a cost increase, we
   // have the plaintext right now and will never have a better moment.
@@ -109,7 +116,7 @@ export async function authenticate(email: string, password: string): Promise<Use
     }
   }
 
-  return user;
+  return { user, emailVerified };
 }
 
 export async function setPassword(userId: string, password: string): Promise<void> {
@@ -153,66 +160,144 @@ export async function emailExists(email: string): Promise<boolean> {
 
 // --- magic links ------------------------------------------------------------
 
+// 'signin' is retired — magic-link sign-in was removed in favour of
+// email-first password auth. The value stays in the union because rows with
+// that purpose may still exist in the database, and consumeEmailToken has to
+// be able to describe what it found. Nothing mints them any more.
+export type TokenPurpose = "signin" | "verify" | "reset";
+
 /**
- * Mint a single-use sign-in token. Returns the *raw* token for the email; only
- * its hash is stored.
+ * Mint a single-use emailed token. Returns the *raw* token for the email; only
+ * its hash is stored, so a leaked database backup contains no working links.
  */
-export async function createLoginToken(
+export async function createEmailToken(
   email: string,
-  nextPath: string | null,
+  purpose: TokenPurpose,
+  nextPath: string | null = null,
 ): Promise<{ token: string; minutes: number }> {
   const c = await db();
   const token = secretToken();
   const now = Date.now();
+  // A verification link is often opened hours later, from a different device,
+  // after the tab was closed. A reset link is a live credential and gets the
+  // short window.
+  const minutes = purpose === "verify" ? VERIFY_TOKEN_MINUTES : LOGIN_TOKEN_MINUTES;
 
   await c.execute({
-    sql: `INSERT INTO login_tokens (token_hash, email, next_path, created_at, expires_at)
-          VALUES (?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO login_tokens (token_hash, email, purpose, next_path, created_at, expires_at)
+          VALUES (?, ?, ?, ?, ?, ?)`,
     args: [
       hashToken(token),
       email.toLowerCase(),
+      purpose,
       nextPath,
       now,
-      now + LOGIN_TOKEN_MINUTES * 60 * 1000,
+      now + minutes * 60 * 1000,
     ],
   });
 
-  return { token, minutes: LOGIN_TOKEN_MINUTES };
+  return { token, minutes };
+}
+
+export type PeekedToken = { email: string; purpose: TokenPurpose; nextPath: string | null };
+
+/**
+ * Read a token without burning it.
+ *
+ * The reset page needs this: it has to render a "choose a new password" form
+ * before it can know the new password, and consuming the token to draw a form
+ * would mean the submit had nothing left to redeem.
+ */
+export async function peekEmailToken(token: string): Promise<PeekedToken | null> {
+  const c = await db();
+  const res = await c.execute({
+    sql: `SELECT email, purpose, next_path FROM login_tokens
+          WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?`,
+    args: [hashToken(token), Date.now()],
+  });
+  const row = res.rows[0];
+  if (!row) return null;
+  return {
+    email: String(row.email),
+    purpose: String(row.purpose) as TokenPurpose,
+    nextPath: row.next_path == null ? null : String(row.next_path),
+  };
 }
 
 /**
- * Burn a sign-in token and return the account it belongs to.
+ * Burn an emailed token and return the account it belongs to.
  *
  * The UPDATE is the gate, not the SELECT: marking the row consumed with
  * `consumed_at IS NULL` in the WHERE clause means two clicks on the same link
- * race for one row, and exactly one wins. Checking-then-updating would let a
+ * race for one row and exactly one wins. Check-then-update would let a
  * forwarded email be redeemed twice.
+ *
+ * `purpose` is matched in the same statement, so a sign-in link can never be
+ * spent as a password reset.
  */
-export async function consumeLoginToken(
+export async function consumeEmailToken(
   token: string,
-): Promise<{ user: User; nextPath: string | null } | null> {
+  purpose?: TokenPurpose,
+): Promise<{ user: User; purpose: TokenPurpose; nextPath: string | null } | null> {
   const c = await db();
   const hash = hashToken(token);
   const now = Date.now();
 
   const claimed = await c.execute({
     sql: `UPDATE login_tokens SET consumed_at = ?
-          WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?`,
-    args: [now, hash, now],
+          WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?
+            AND (? IS NULL OR purpose = ?)`,
+    args: [now, hash, now, purpose ?? null, purpose ?? null],
   });
   if (claimed.rowsAffected === 0) return null;
 
   const res = await c.execute({
-    sql: "SELECT email, next_path FROM login_tokens WHERE token_hash = ?",
+    sql: "SELECT email, purpose, next_path FROM login_tokens WHERE token_hash = ?",
     args: [hash],
   });
   const row = res.rows[0];
   if (!row) return null;
 
   const user = await upsertUserByEmail(String(row.email));
-  // Following a link we emailed proves control of the address.
+  // Any of these three arrived by email, so all three prove control of the
+  // address — including a reset, which is the point of resetting by email.
   await markEmailVerified(user.id);
-  return { user, nextPath: row.next_path == null ? null : String(row.next_path) };
+
+  return {
+    user,
+    purpose: String(row.purpose) as TokenPurpose,
+    nextPath: row.next_path == null ? null : String(row.next_path),
+  };
+}
+
+/**
+ * Finish a password reset: set the new password and evict every existing
+ * session.
+ *
+ * Total eviction is the difference between reset and change. Someone resets
+ * because they think an account is compromised, or because they lost the
+ * device it was signed in on — leaving those sessions alive would defeat the
+ * exercise.
+ */
+export async function resetPasswordWithToken(
+  token: string,
+  newPassword: string,
+): Promise<User | null> {
+  const claimed = await consumeEmailToken(token, "reset");
+  if (!claimed) return null;
+
+  await setPassword(claimed.user.id, newPassword);
+
+  const c = await db();
+  await c.execute({ sql: "DELETE FROM sessions WHERE user_id = ?", args: [claimed.user.id] });
+  // Any other outstanding reset or sign-in link is now stale too.
+  await c.execute({
+    sql: `UPDATE login_tokens SET consumed_at = ?
+          WHERE email = ? AND consumed_at IS NULL`,
+    args: [Date.now(), claimed.user.email],
+  });
+
+  return claimed.user;
 }
 
 // --- sessions ---------------------------------------------------------------
