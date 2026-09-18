@@ -1,0 +1,25 @@
+# Typecheck both packages and run the hand-rolled test scripts.
+# Split never had CI; this is the one place Ski House deliberately diverges.
+name: check
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Each package installs independently — there is no workspace hoisting.
+      - run: npm --prefix mobile install --no-audit --no-fund
+      - run: npm --prefix server install --no-audit --no-fund
+
+      - run: npm --prefix mobile run check
+      - run: npm --prefix server run check
+      - run: npm --prefix mobile run test

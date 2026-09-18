@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+
+# Generated: the Expo web export is built into the Next.js public dir.
+server/public/
+
+*.log

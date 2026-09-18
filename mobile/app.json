@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Ski House",
+    "slug": "skihaus",
+    "owner": "tryst",
+    "scheme": "skihaus",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tristan.skihaus",
+      "associatedDomains": [],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.tristan.skihaus",
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F9FF",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "./plugins/withIosDeploymentTarget",
+      ["expo-build-properties", { "ios": { "deploymentTarget": "16.0" } }],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F5F9FF"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE-VIA-eas-init"
+      }
+    }
+  }
+}
