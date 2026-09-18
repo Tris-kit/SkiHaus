@@ -1,50 +1,51 @@
-// The whole sign-up and sign-in flow: type your email, click the link.
+// Sign in, sign up, or get a link emailed.
 //
-// There is no password field, no "create account" tab, and no social buttons.
-// Sign-up and sign-in are the same action — the server upserts the user when
-// the link is consumed — so there is nothing here for someone to get wrong.
+// Password is the default path because it works with no email infrastructure
+// at all — you can stand the whole app up with nothing but a database. The
+// magic link stays available for anyone who'd rather not have a password, and
+// it's the route back in when one is forgotten.
 
 import { useState } from "react";
-import { Linking, Text, View } from "react-native";
-import { requestSignInLink, verifyToken } from "../api";
+import { Pressable, Text, View } from "react-native";
+import { register, requestSignInLink, signIn, verifyToken } from "../api";
 import { useAction } from "../hooks";
 import { isWeb } from "../storage";
-import { colors, spacing } from "../theme";
+import { colors, radius, spacing } from "../theme";
 import { Banner, Button, Card, Field, Screen } from "../ui";
 import type { Session } from "../types";
 
+type Mode = "signin" | "signup" | "link";
+
 export function SignInScreen({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [sent, setSent] = useState(false);
-  const [code, setCode] = useState("");
   const action = useAction();
 
-  function send() {
-    void action.run(
-      () => requestSignInLink(email.trim()),
-      () => setSent(true),
-    );
+  function go() {
+    void action.run(async () => {
+      if (mode === "signin") return onSignedIn(await signIn(email.trim(), password));
+      if (mode === "signup") return onSignedIn(await register(email.trim(), password, name.trim()));
+      await requestSignInLink(email.trim());
+      setSent(true);
+    });
   }
 
-  /**
-   * Native only. On web, clicking the emailed link navigates to /join/:token,
-   * which sets the cookie server-side and lands you in the app — nothing to
-   * paste. In the native app there is no such navigation, so the token has to
-   * come back in by hand until universal links are configured (see
-   * RELEASING.md).
-   */
-  function verify() {
-    void action.run(
-      async () => {
-        const token = extractToken(code.trim());
-        return onSignedIn(await verifyToken(token));
-      },
-    );
+  function switchTo(next: Mode) {
+    setMode(next);
+    setSent(false);
+    action.clear();
   }
+
+  const emailLooksOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const canSubmit =
+    mode === "link" ? emailLooksOk : emailLooksOk && password.length >= 8;
 
   return (
     <Screen>
-      <View style={{ paddingTop: spacing(6), paddingBottom: spacing(3) }}>
+      <View style={{ paddingTop: spacing(5), paddingBottom: spacing(3) }}>
         <Text
           style={{
             fontSize: 13,
@@ -66,8 +67,33 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (s: Session) => void 
       </View>
 
       <Card style={{ paddingVertical: spacing(2.5) }}>
-        {!sent ? (
+        {sent ? (
+          <CheckYourEmail
+            email={email}
+            onSignedIn={onSignedIn}
+            onRestart={() => switchTo("signin")}
+          />
+        ) : (
           <>
+            <Segmented
+              value={mode}
+              onChange={switchTo}
+              options={[
+                { value: "signin", label: "Sign in" },
+                { value: "signup", label: "Create account" },
+              ]}
+            />
+
+            {mode === "signup" && (
+              <Field
+                label="Your name"
+                value={name}
+                onChangeText={setName}
+                placeholder="Tristan"
+                autoCapitalize="words"
+              />
+            )}
+
             <Field
               label="Email"
               value={email}
@@ -75,60 +101,145 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (s: Session) => void 
               placeholder="you@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
-              hint="We'll email you a link. No password to remember."
             />
-            {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
-            <Button
-              title="Email me a link"
-              onPress={send}
-              busy={action.busy}
-              disabled={!email.includes("@")}
-            />
-          </>
-        ) : (
-          <>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Check your email
-            </Text>
-            <Text style={{ fontSize: 14, color: colors.textDim, marginTop: 6, lineHeight: 20 }}>
-              We sent a link to {email}. It works once and expires in 20 minutes.
-            </Text>
 
-            {!isWeb && (
-              <View style={{ marginTop: spacing(3) }}>
-                <Field
-                  label="Or paste the link here"
-                  value={code}
-                  onChangeText={setCode}
-                  placeholder="https://…/join/…"
-                  autoCapitalize="none"
-                  hint="Opening the link in Safari signs in the web app. Paste it here to sign in to this app instead."
-                />
-                {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
-                <Button title="Sign in" onPress={verify} busy={action.busy} disabled={!code.trim()} />
-              </View>
+            {mode !== "link" && (
+              <Field
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="At least 8 characters"
+                secureTextEntry
+                autoCapitalize="none"
+                hint={mode === "signup" ? "Eight characters minimum. That's the only rule." : undefined}
+              />
             )}
 
+            {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
+
             <Button
-              title="Use a different email"
-              variant="secondary"
-              onPress={() => {
-                setSent(false);
-                action.clear();
-              }}
-              style={{ marginTop: spacing(1.5) }}
+              title={mode === "signup" ? "Create account" : "Sign in"}
+              onPress={go}
+              busy={action.busy}
+              disabled={!canSubmit}
             />
+
+            <Pressable onPress={() => switchTo("link")} style={{ marginTop: spacing(2) }}>
+              <Text style={{ fontSize: 13, color: colors.primary, textAlign: "center" }}>
+                {mode === "link" ? "Use a password instead" : "Email me a sign-in link instead"}
+              </Text>
+            </Pressable>
+
+            {mode === "link" && (
+              <Text style={{ fontSize: 12, color: colors.textFaint, marginTop: spacing(1), lineHeight: 18, textAlign: "center" }}>
+                No password needed — we&apos;ll send a link that signs you in.
+              </Text>
+            )}
           </>
         )}
       </Card>
 
-      <Text
-        style={{ fontSize: 12, color: colors.textFaint, textAlign: "center", lineHeight: 18 }}
-        onPress={() => void Linking.openURL("https://github.com/Tris-kit/SkiHaus")}
-      >
-        By signing in you agree to the terms and privacy policy.
+      <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: "center", lineHeight: 18 }}>
+        Guests don&apos;t need an account at all — they get their own link.
       </Text>
     </Screen>
+  );
+}
+
+function CheckYourEmail({
+  email,
+  onSignedIn,
+  onRestart,
+}: {
+  email: string;
+  onSignedIn: (s: Session) => void;
+  onRestart: () => void;
+}) {
+  const [pasted, setPasted] = useState("");
+  const action = useAction();
+
+  return (
+    <>
+      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Check your email</Text>
+      <Text style={{ fontSize: 14, color: colors.textDim, marginTop: 6, lineHeight: 20 }}>
+        We sent a link to {email}. It works once and expires in 20 minutes.
+      </Text>
+
+      {/* Native only. On web the emailed link navigates to /join/<token>,
+          which sets the cookie server-side — nothing to paste. The native app
+          has no such navigation until universal links are configured. */}
+      {!isWeb && (
+        <View style={{ marginTop: spacing(3) }}>
+          <Field
+            label="Or paste the link here"
+            value={pasted}
+            onChangeText={setPasted}
+            placeholder="https://…/join/…"
+            autoCapitalize="none"
+          />
+          {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
+          <Button
+            title="Sign in"
+            busy={action.busy}
+            disabled={!pasted.trim()}
+            onPress={() =>
+              void action.run(async () => onSignedIn(await verifyToken(extractToken(pasted.trim()))))
+            }
+          />
+        </View>
+      )}
+
+      <Button
+        title="Back"
+        variant="secondary"
+        onPress={onRestart}
+        style={{ marginTop: spacing(1.5) }}
+      />
+    </>
+  );
+}
+
+function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: Array<{ value: T; label: string }>;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        gap: 4,
+        backgroundColor: colors.surfaceAlt,
+        borderRadius: radius.md,
+        padding: 4,
+        marginBottom: spacing(2.5),
+      }}
+    >
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            style={{
+              flex: 1,
+              paddingVertical: 9,
+              borderRadius: radius.sm,
+              backgroundColor: on ? colors.surface : colors.transparent,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "600", color: on ? colors.primaryDeep : colors.textDim }}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 

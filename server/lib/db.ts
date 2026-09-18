@@ -34,6 +34,9 @@ function raw(): Client {
 // member booking the night is in another.
 const SCHEMA: string[] = [
   // --- identity -------------------------------------------------------------
+  // password_hash is NULL for accounts that only ever used a magic link, and
+  // email_verified_at is NULL for accounts created with a password and never
+  // confirmed by email. Both states are normal and supported.
   `CREATE TABLE IF NOT EXISTS users (
      id TEXT PRIMARY KEY,
      email TEXT NOT NULL UNIQUE,
@@ -41,6 +44,8 @@ const SCHEMA: string[] = [
      avatar_emoji TEXT,
      avatar_color TEXT,
      phone TEXT,
+     password_hash TEXT,
+     email_verified_at INTEGER,
      created_at INTEGER NOT NULL,
      last_seen_at INTEGER
    )`,
@@ -407,7 +412,12 @@ const SCHEMA: string[] = [
 // `ADD COLUMN IF NOT EXISTS`, so each of these is expected to fail with
 // "duplicate column name" on every run after the first — that error is
 // swallowed. Anything else re-throws.
-const MIGRATIONS: string[] = [];
+const MIGRATIONS: string[] = [
+  // Added when password sign-in landed. Databases created before that already
+  // have a `users` table, and CREATE TABLE IF NOT EXISTS won't alter it.
+  `ALTER TABLE users ADD COLUMN password_hash TEXT`,
+  `ALTER TABLE users ADD COLUMN email_verified_at INTEGER`,
+];
 
 async function ensureSchema(c: Client): Promise<void> {
   if (!_schema) {

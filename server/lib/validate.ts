@@ -6,6 +6,7 @@
 
 import { badRequest } from "./http";
 import { isValidDay } from "./money";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "./password";
 import { ROLE_RANK, type Role } from "./types";
 
 const MAX_TEXT = 2000;
@@ -94,6 +95,27 @@ export function email(v: unknown, field = "Email"): string {
   const s = str(v, field, { max: 320 }).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) throw badRequest(`${field} doesn't look right.`);
   return s;
+}
+
+/**
+ * Length is the only rule, per current NIST guidance. Composition rules
+ * ("one uppercase, one symbol") measurably push people toward `Password1!`
+ * and into reusing it, and they'd be enforced here against a ski house of
+ * twelve people who will otherwise pick something fine.
+ *
+ * Not trimmed: leading and trailing spaces are legitimate password characters,
+ * and silently stripping them means a password manager's value stops matching
+ * what was stored.
+ */
+export function password(v: unknown, field = "Password"): string {
+  if (typeof v !== "string") throw badRequest(`${field} is required.`);
+  if (v.length < MIN_PASSWORD_LENGTH) {
+    throw badRequest(`${field} must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+  if (v.length > MAX_PASSWORD_LENGTH) {
+    throw badRequest(`${field} must be ${MAX_PASSWORD_LENGTH} characters or fewer.`);
+  }
+  return v;
 }
 
 export const ROLES = ["admin", "member", "guest"] as const;

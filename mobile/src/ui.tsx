@@ -193,6 +193,7 @@ export function Field({
   keyboardType,
   autoCapitalize,
   multiline,
+  secureTextEntry,
   hint,
 }: {
   label: string;
@@ -202,6 +203,7 @@ export function Field({
   keyboardType?: "default" | "email-address" | "decimal-pad" | "number-pad";
   autoCapitalize?: "none" | "sentences" | "words";
   multiline?: boolean;
+  secureTextEntry?: boolean;
   hint?: string;
 }) {
   return (
@@ -216,6 +218,12 @@ export function Field({
         autoCapitalize={autoCapitalize}
         autoCorrect={autoCapitalize === "none" ? false : undefined}
         multiline={multiline}
+        secureTextEntry={secureTextEntry}
+        // Lets iOS and the browser offer to save and fill the credential.
+        // Without it, password managers ignore the field and people reuse
+        // something they can remember instead.
+        textContentType={secureTextEntry ? "password" : undefined}
+        autoComplete={secureTextEntry ? "current-password" : undefined}
         style={[s.input, multiline && { minHeight: 96, textAlignVertical: "top" }]}
       />
       {hint ? <Text style={s.hint}>{hint}</Text> : null}

@@ -114,6 +114,43 @@ export async function requestSignInLink(email: string, next?: string): Promise<v
   await post("/api/auth/request", { email, next });
 }
 
+type AuthResponse = Session & { sessionToken: string };
+
+/** Sign in with email and password. Throws ApiError(401) on a bad pair. */
+export async function signIn(email: string, password: string): Promise<Session> {
+  const res = await post<AuthResponse>("/api/auth/login", { email, password });
+  await setSessionToken(res.sessionToken);
+  return { user: res.user, houses: res.houses };
+}
+
+/** Create an account and sign in. Throws ApiError(400) if the email is taken. */
+export async function register(
+  email: string,
+  password: string,
+  name?: string,
+): Promise<Session> {
+  const res = await post<AuthResponse>("/api/auth/register", { email, password, name });
+  await setSessionToken(res.sessionToken);
+  return { user: res.user, houses: res.houses };
+}
+
+export const hasPassword = () => get<{ hasPassword: boolean }>("/api/auth/password");
+
+/** Set or change your password. `currentPassword` is required only if one is set. */
+export async function setAccountPassword(
+  password: string,
+  currentPassword?: string,
+): Promise<void> {
+  const res = await post<{ ok: true; sessionToken?: string }>("/api/auth/password", {
+    password,
+    currentPassword,
+  });
+  // The server rotates the session if it couldn't identify the caller's own
+  // token to spare (native app with no cookie and no bearer, e.g. right after
+  // a magic link).
+  if (res.sessionToken) await setSessionToken(res.sessionToken);
+}
+
 /**
  * Exchange a magic-link token for a session (native only — on web, the
  * /join/:token page sets the cookie during navigation).

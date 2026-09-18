@@ -24,12 +24,13 @@ export function HomeScreen({
   entry,
   session,
   onGo,
-  onSwitchHouse,
+  onLeases,
 }: {
   entry: HouseEntry;
   session: Session;
   onGo: (step: Step) => void;
-  onSwitchHouse: () => void;
+  /** Back to the lease list, which is the app's home screen. */
+  onLeases: () => void;
 }) {
   const houseId = entry.house.id;
   const isGuest = entry.role === "guest";
@@ -53,14 +54,7 @@ export function HomeScreen({
     <Screen
       title={entry.house.name}
       subtitle={[entry.house.location, entry.house.season].filter(Boolean).join(" · ")}
-      right={
-        <Text
-          onPress={onSwitchHouse}
-          style={{ color: colors.primary, fontSize: 14, fontWeight: "600", paddingTop: 6 }}
-        >
-          Switch
-        </Text>
-      }
+      onBack={onLeases}
     >
       {/* --- money --- */}
       {!isGuest && (

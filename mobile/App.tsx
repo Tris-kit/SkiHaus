@@ -21,7 +21,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { View } from "react-native";
 
 import { fetchSession, type HouseEntry } from "./src/api";
-import { getLastHouseId, setLastHouseId } from "./src/storage";
+import { setLastHouseId } from "./src/storage";
 import { colors } from "./src/theme";
 import { Loading, Screen } from "./src/ui";
 import type { Session } from "./src/types";
@@ -66,18 +66,12 @@ export default function App() {
       return;
     }
 
-    if (s.houses.length === 0) {
-      // Signed in but in no house yet — the create/join screen, not an
-      // empty home screen with nothing on it.
-      setHouseId(null);
-      setStep("houses");
-      return;
-    }
-
-    const remembered = await getLastHouseId();
-    const pick = s.houses.find((h) => h.house.id === remembered) ?? s.houses[0];
-    setHouseId(pick.house.id);
-    setStep("home");
+    // Always land on the lease list, even with exactly one lease. It is the
+    // home screen: it answers "what am I part of" before "what do I owe", and
+    // it's the only place a new lease can be started. Auto-opening the last
+    // lease saved one tap and cost the app its front door.
+    setHouseId(null);
+    setStep("houses");
   }, []);
 
   useEffect(() => {
@@ -144,7 +138,10 @@ export default function App() {
             entry={entry}
             session={session}
             onGo={setStep}
-            onSwitchHouse={() => setStep("houses")}
+            onLeases={() => {
+              setHouseId(null);
+              setStep("houses");
+            }}
           />
         );
     }

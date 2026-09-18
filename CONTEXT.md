@@ -153,12 +153,31 @@ wrapper for people who want an icon on their home screen.
 
 Access follows the same philosophy, in two tiers:
 
-- **Members and admins** sign in with an email magic link. No password, no
-  download. Click the link in your inbox, you're in.
+- **Members and admins** sign in with an email and password, or with a magic
+  link — either works, on the same account.
 - **Guests** don't sign in at all. Each guest stay mints an unguessable
   capability token; `/g/<token>` is a public page showing that guest their
   dates, their fee, and the house rules. This is Split's proven share-link
   model, scoped down.
+
+### Why both
+
+The original design was magic-link only: no passwords to forget, no reset
+flow, no breach-response obligation. It is still the nicer experience.
+
+It has one hard failure mode, which showed up the first time the app was
+deployed: **it cannot work at all until transactional email does.** No Resend
+key meant nobody could get through the front door, including the person
+setting it up. That is a bad property for a tool a ski house self-hosts in an
+afternoon.
+
+Passwords don't remove the email dependency, they relocate it — sign-in stops
+needing email, password *reset* starts needing it. The point is that the
+dependency moves off the critical path. You can stand the whole app up with a
+database and nothing else.
+
+So: an account may have a password, a verified email, or both. Neither is
+required. Nothing is ever gated on having a password.
 
 ## 7. Money model
 

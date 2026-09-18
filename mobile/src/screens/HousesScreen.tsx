@@ -1,7 +1,13 @@
-// Pick a house, or start one.
+// The home screen: every ski lease you're part of, and a button to start one.
 //
-// Doubles as the empty state for a brand-new account: signing in with no
-// memberships lands here rather than on a home screen with nothing on it.
+// This is the landing screen after sign-in, always — even with a single lease.
+// It's the only place a new lease can be created, and it's the answer to
+// "what am I part of", which is the question you have before "what do I owe".
+//
+// TERMINOLOGY: the UI says "ski lease" here because that's the thing you're a
+// member of — a season-long agreement with other people. Inside one, it's "the
+// house", because that's the place you drive to. The data model calls it
+// `house` throughout.
 
 import { useState } from "react";
 import { Text, View } from "react-native";
@@ -22,26 +28,13 @@ export function HousesScreen({
   onChanged: () => void;
   onSignOut: () => void;
 }) {
-  const [creating, setCreating] = useState(session.houses.length === 0);
-  const [name, setName] = useState("");
-  const [season, setSeason] = useState(defaultSeason());
-  const [location, setLocation] = useState("");
-  const action = useAction();
-
-  function create() {
-    void action.run(
-      async () => {
-        const res = await createHouse({ name: name.trim(), season, location: location.trim() });
-        onOpen(res.house.id);
-      },
-      onChanged,
-    );
-  }
+  const [creating, setCreating] = useState(false);
+  const empty = session.houses.length === 0;
 
   return (
     <Screen
-      title="Your houses"
-      subtitle={session.user.email}
+      title="Ski House"
+      subtitle={session.user.name || session.user.email}
       right={
         <Avatar
           name={session.user.name || session.user.email}
@@ -50,86 +43,134 @@ export function HousesScreen({
         />
       }
     >
-      {session.houses.length > 0 && (
-        <Card>
-          {session.houses.map((h, i) => (
-            <Row
-              key={h.house.id}
-              label={h.house.name}
-              sub={[h.house.location, h.house.season].filter(Boolean).join(" · ") || undefined}
-              value={<RolePill role={h.role} />}
-              onPress={() => onOpen(h.house.id)}
-              last={i === session.houses.length - 1}
-            />
-          ))}
-        </Card>
+      {!empty && (
+        <>
+          <SectionHeader>
+            {session.houses.length === 1 ? "Your lease" : `Your leases · ${session.houses.length}`}
+          </SectionHeader>
+          <Card>
+            {session.houses.map((h, i) => (
+              <Row
+                key={h.house.id}
+                label={h.house.name}
+                sub={
+                  [h.house.location, h.house.season].filter(Boolean).join(" · ") ||
+                  "No location set"
+                }
+                value={<RolePill role={h.role} />}
+                onPress={() => onOpen(h.house.id)}
+                last={i === session.houses.length - 1}
+              />
+            ))}
+          </Card>
+        </>
       )}
 
-      {session.houses.length === 0 && !creating && (
+      {empty && !creating && (
         <Empty
           icon="home"
-          title="No houses yet"
-          body="Start a house if you're the manager, or ask whoever runs your lease to send you an invite link."
+          title="No ski leases yet"
+          body="Start one if you're the person organising it. If someone else is, ask them for an invite link — you don't need an account they've set up for you."
         />
       )}
 
       {creating ? (
-        <>
-          <SectionHeader>Start a house</SectionHeader>
-          <Card style={{ paddingVertical: spacing(2) }}>
-            <Field
-              label="House name"
-              value={name}
-              onChangeText={setName}
-              placeholder="Cabin 12"
-              autoCapitalize="words"
-            />
-            <Field
-              label="Season"
-              value={season}
-              onChangeText={setSeason}
-              placeholder="2026–27"
-              hint="Just a label — it appears under the house name."
-            />
-            <Field
-              label="Mountain or town"
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Stowe, VT"
-              autoCapitalize="words"
-            />
-            {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
-            <Button
-              title="Create house"
-              onPress={create}
-              busy={action.busy}
-              disabled={name.trim().length < 2}
-            />
-            <Text style={{ fontSize: 12, color: colors.textFaint, marginTop: spacing(1.5), lineHeight: 18 }}>
-              You&apos;ll be the manager. You can invite members and guests, and hand the role over
-              later.
-            </Text>
-          </Card>
-        </>
+        <CreateLease
+          onCreated={(id) => {
+            setCreating(false);
+            onChanged();
+            onOpen(id);
+          }}
+          onCancel={() => setCreating(false)}
+        />
       ) : (
-        <Button title="Start a new house" variant="secondary" onPress={() => setCreating(true)} />
+        <Button
+          title="Create a ski lease"
+          onPress={() => setCreating(true)}
+          variant={empty ? "primary" : "secondary"}
+        />
       )}
 
       <View style={{ marginTop: spacing(4) }}>
-        <Button
-          title="Sign out"
-          variant="secondary"
-          onPress={() => void signOut().then(onSignOut)}
-        />
+        <Button title="Sign out" variant="secondary" onPress={() => void signOut().then(onSignOut)} />
       </View>
     </Screen>
+  );
+}
+
+function CreateLease({
+  onCreated,
+  onCancel,
+}: {
+  onCreated: (houseId: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [season, setSeason] = useState(defaultSeason());
+  const [location, setLocation] = useState("");
+  const action = useAction();
+
+  return (
+    <>
+      <SectionHeader>New ski lease</SectionHeader>
+      <Card style={{ paddingVertical: spacing(2) }}>
+        <Field
+          label="What do you call it?"
+          value={name}
+          onChangeText={setName}
+          placeholder="Cabin 12"
+          autoCapitalize="words"
+        />
+        <Field
+          label="Season"
+          value={season}
+          onChangeText={setSeason}
+          placeholder="2026–27"
+          hint="Just a label — it shows under the name."
+        />
+        <Field
+          label="Mountain or town"
+          value={location}
+          onChangeText={setLocation}
+          placeholder="Stowe, VT"
+          autoCapitalize="words"
+        />
+
+        {action.error ? <Banner tone="bad">{action.error}</Banner> : null}
+
+        <View style={{ flexDirection: "row", gap: spacing(1) }}>
+          <Button title="Cancel" variant="secondary" onPress={onCancel} style={{ flex: 1 }} />
+          <Button
+            title="Create"
+            busy={action.busy}
+            disabled={name.trim().length < 2}
+            onPress={() =>
+              void action.run(async () => {
+                const res = await createHouse({
+                  name: name.trim(),
+                  season: season.trim(),
+                  location: location.trim(),
+                });
+                onCreated(res.house.id);
+              })
+            }
+            style={{ flex: 2 }}
+          />
+        </View>
+
+        <Text style={{ fontSize: 12, color: colors.textFaint, marginTop: spacing(1.5), lineHeight: 18 }}>
+          You&apos;ll be the manager: you record expenses, set guest fees and run votes. You can
+          hand that over later.
+        </Text>
+      </Card>
+    </>
   );
 }
 
 /** "2026–27" from today's date — a season spans the new year. */
 function defaultSeason(): string {
   const now = new Date();
-  // Before July, we're in the back half of the season that started last year.
+  // Before July we're in the back half of the season that started last year.
   const start = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
   return `${start}–${String(start + 1).slice(2)}`;
 }

@@ -62,11 +62,24 @@ in `server/app/`.
 
 Two credential systems, on purpose.
 
-**Accounts** (admins, members): passwordless email magic link. `POST
-/api/auth/request` mails a link to `/join/:token`; that route handler burns the
-token, opens a session and redirects. Web holds an HttpOnly `sh_session`
-cookie; the native app holds a bearer token in the Keychain. Both resolve to
-one row in `sessions` — see `server/lib/auth.ts`.
+**Accounts** (admins, members): email + password, or an email magic link.
+Both land on the same account and neither is required — an account may have a
+password, a verified email, or both. Nothing is ever gated on having a
+password.
+
+- `POST /api/auth/register` / `POST /api/auth/login` — the password path.
+  Hashing is scrypt from Node core; `server/lib/password.ts` documents the
+  parameters, the self-describing storage format, and why not bcrypt/argon2.
+- `POST /api/auth/request` mails a link to `/join/:token`; that route handler
+  burns the token, opens a session and redirects.
+- `POST /api/auth/password` sets or changes one. `currentPassword` is required
+  only if a password is already set — that's the route from "arrived by magic
+  link" to "has a password", and demanding a current password it doesn't have
+  would lock the account out of ever setting one.
+
+Web holds an HttpOnly `sh_session` cookie; the native app holds a bearer token
+in the Keychain. Both resolve to one row in `sessions` — see
+`server/lib/auth.ts`.
 
 **Capabilities** (guests): a guest stay mints a 256-bit token; `/g/:token` is a
 public page showing that guest their dates, fee and the house rules. No
@@ -252,6 +265,18 @@ Full runbook: **[RELEASING.md](RELEASING.md)**.
   are a bulleted list, not a document format.
 - **`fontVariant: ["tabular-nums"]`, not `fontVariantNumeric`.** The latter is
   the CSS name and does not exist in React Native's `TextStyle`.
+- **`/api/auth/register` may say an email is taken; `/api/auth/login` and
+  `/api/auth/request` may not.** Signup has to reject a duplicate address, and
+  every signup form on the internet leaks that. The sign-in paths give one
+  message for wrong-password, no-such-account and no-password-set, and
+  `fakeVerify()` equalises the timing — otherwise they become an oracle for
+  which of your housemates have accounts.
+- **Changing a password evicts every *other* session, not the caller's.**
+  Evicting all of them signs you out of the action you just took; evicting
+  none defeats the reason people change passwords.
+- **The lease list is the landing screen even with one lease.** Auto-opening
+  the only lease saves a tap and costs the app its front door — there'd be
+  nowhere to create a second one from.
 
 ## Known gaps (accurate as of the initial scaffold)
 

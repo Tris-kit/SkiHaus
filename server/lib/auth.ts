@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { db } from "./db";
 import { hashToken, secretToken, shortId } from "./ids";
 import { unauthorized } from "./http";
+import { fakeVerify, hashPassword, needsRehash, verifyPassword } from "./password";
 import { rowToHouse, rowToUser } from "./rows";
 import type { Role, Session, User } from "./types";
 
@@ -64,6 +65,90 @@ export async function getUser(id: string): Promise<User | null> {
   const res = await c.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [id] });
   const row = res.rows[0];
   return row ? rowToUser(row as Record<string, unknown>) : null;
+}
+
+// --- passwords --------------------------------------------------------------
+//
+// Passwords sit alongside magic links rather than replacing them: an account
+// may have a password, a verified email, both, or (briefly, at invite time)
+// neither. See CONTEXT.md §6.
+
+/**
+ * Check an email and password. Returns the user, or null.
+ *
+ * Deliberately gives the same answer — and takes roughly the same time — for
+ * "no such account", "account has no password" and "wrong password". Any
+ * difference between those three is an oracle for which addresses are
+ * registered.
+ */
+export async function authenticate(email: string, password: string): Promise<User | null> {
+  const c = await db();
+  const res = await c.execute({
+    sql: "SELECT * FROM users WHERE email = ?",
+    args: [email.toLowerCase()],
+  });
+  const row = res.rows[0] as Record<string, unknown> | undefined;
+
+  if (!row || row.password_hash == null) {
+    await fakeVerify();
+    return null;
+  }
+
+  const stored = String(row.password_hash);
+  if (!(await verifyPassword(password, stored))) return null;
+
+  const user = rowToUser(row);
+
+  // Opportunistic upgrade: if the stored hash predates a cost increase, we
+  // have the plaintext right now and will never have a better moment.
+  if (needsRehash(stored)) {
+    try {
+      await setPassword(user.id, password);
+    } catch (e) {
+      console.error("[auth] rehash failed", e);
+    }
+  }
+
+  return user;
+}
+
+export async function setPassword(userId: string, password: string): Promise<void> {
+  const c = await db();
+  await c.execute({
+    sql: "UPDATE users SET password_hash = ? WHERE id = ?",
+    args: [await hashPassword(password), userId],
+  });
+}
+
+export async function hasPassword(userId: string): Promise<boolean> {
+  const c = await db();
+  const res = await c.execute({
+    sql: "SELECT password_hash FROM users WHERE id = ?",
+    args: [userId],
+  });
+  return res.rows[0]?.password_hash != null;
+}
+
+/**
+ * Record that someone proved control of their address by following a link
+ * we emailed them. Nothing enforces this yet — it exists so that tightening
+ * invite redemption later doesn't need a backfill.
+ */
+export async function markEmailVerified(userId: string): Promise<void> {
+  const c = await db();
+  await c.execute({
+    sql: "UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?",
+    args: [Date.now(), userId],
+  });
+}
+
+export async function emailExists(email: string): Promise<boolean> {
+  const c = await db();
+  const res = await c.execute({
+    sql: "SELECT 1 FROM users WHERE email = ?",
+    args: [email.toLowerCase()],
+  });
+  return res.rows.length > 0;
 }
 
 // --- magic links ------------------------------------------------------------
@@ -125,6 +210,8 @@ export async function consumeLoginToken(
   if (!row) return null;
 
   const user = await upsertUserByEmail(String(row.email));
+  // Following a link we emailed proves control of the address.
+  await markEmailVerified(user.id);
   return { user, nextPath: row.next_path == null ? null : String(row.next_path) };
 }
 
