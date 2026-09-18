@@ -28,15 +28,48 @@ identifier is `com.tristan.skihaus`.
 
 ### One-time Vercel setup
 
-1. Import the GitHub repo. Framework preset auto-detects Next.js; leave Root
-   Directory at `./` — the root `package.json`'s `build` script proxies to
-   `server`.
-2. Add the Turso integration (Production **and** Preview).
-3. Add `RESEND_API_KEY` and `MAIL_FROM`.
-4. Set the Production Branch to `main`.
-5. **Turn off "Auto-assign Custom Production Domains."** This is the whole
-   safety model: a push to `main` builds and *stages* at a unique URL, and the
-   live domain keeps serving the last promoted deployment.
+1. Import the GitHub repo.
+2. **Set Root Directory to `server`,** and make sure **"Include files outside
+   of the Root Directory in the Build Step"** is on.
+
+   This is the setting the whole build hinges on, and getting it wrong fails
+   in two different confusing ways. With Root Directory at `./`, Vercel
+   installs the *root* `package.json` — which has no dependencies, because it
+   is only a script proxy — so `next` is never installed and the build dies
+   with:
+
+   ```
+   up to date in 404ms          ← the tell: nothing was actually installed
+   ...
+   sh: line 1: next: command not found
+   Error: Command "npm run build" exited with 127
+   ```
+
+   Get past that and it fails again at the end with *"No Output Directory
+   named `.next` found"*, because the output is in `server/.next` while Vercel
+   is looking at the repo root.
+
+   Pointing Root Directory at `server` fixes both at once: Vercel installs
+   `server`'s dependencies, detects Next.js from `server/next.config.mjs`,
+   runs the `vercel-build` script already in `server/package.json`, and finds
+   `.next` where it actually is. "Include files outside" is what lets
+   `build-web.mjs` reach `../mobile` to export the app.
+3. Add the Turso integration, or set `TURSO_DATABASE_URL` and
+   `TURSO_AUTH_TOKEN` by hand (Production **and** Preview).
+4. Add `RESEND_API_KEY` and `MAIL_FROM`. Optional at first — without them,
+   sign-in links appear in the Vercel function logs instead of being emailed,
+   and `/api/health` reports `mail: false`.
+5. Set the Production Branch to `main`.
+6. **Turn off "Auto-assign Custom Production Domains"** — but not yet. This is
+   the staging model: a push to `main` builds and *stages* at a unique URL
+   while the live domain keeps serving the last promoted deployment. It's
+   worth having once other people depend on the app; while you're still
+   getting the first deploy green it's just an extra step between you and a
+   working URL.
+
+You do **not** need a domain. `build-web.mjs` derives the API base from the
+deployment itself, so the web app is same-origin with its own API on
+`*.vercel.app` and keeps working unchanged after you add a custom domain.
 
 ---
 
