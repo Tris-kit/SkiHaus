@@ -20,22 +20,48 @@ const publicDir = join(serverDir, "public");
 const pwaDir = join(serverDir, "pwa");
 
 /**
- * On a preview deployment, point the web bundle at *its own* branch URL.
+ * On Vercel, point the web bundle at *its own* deployment.
  *
- * EXPO_PUBLIC_API_BASE is inlined by Metro at build time, so without this the
- * dev branch would ship a UI that calls production — you'd think you were
- * testing and you'd be mutating live data.
+ * EXPO_PUBLIC_API_BASE is inlined by Metro at build time, and `mobile/.env`
+ * sets it to localhost for local development. Without this, a Vercel build
+ * would happily ship a web app that calls the developer's laptop — it fails
+ * silently for every user and looks like a backend outage.
  *
- * VERCEL_BRANCH_URL is stable per branch; VERCEL_URL changes every deployment.
+ * Deriving it instead of hard-coding a domain means the web app is always
+ * same-origin with its own API, so it works on `*.vercel.app` with no domain
+ * registered and keeps working after you add one.
+ *
+ *   preview    → VERCEL_BRANCH_URL (stable per branch, unlike VERCEL_URL),
+ *                so the dev branch never ships a UI that mutates production.
+ *   production → VERCEL_PROJECT_PRODUCTION_URL, the canonical domain.
+ *
+ * Setting EXPO_PUBLIC_API_BASE explicitly in the Vercel dashboard overrides
+ * all of this — that's the escape hatch if the API ever moves off-origin.
  */
-function previewApiBase() {
-  if (process.env.VERCEL_ENV !== "preview") return null;
-  const host = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+function vercelApiBase() {
+  if (!process.env.VERCEL) return null;
+
+  const explicit = process.env.EXPO_PUBLIC_API_BASE;
+  if (explicit && !explicit.includes("localhost")) return explicit.replace(/\/$/, "");
+
+  const host =
+    process.env.VERCEL_ENV === "preview"
+      ? process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL
+      : process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+
   return host ? `https://${host}` : null;
 }
 
-const apiBase = previewApiBase();
-if (apiBase) console.log(`[build-web] preview build → API base ${apiBase}`);
+const apiBase = vercelApiBase();
+if (apiBase) {
+  console.log(`[build-web] ${process.env.VERCEL_ENV} build → API base ${apiBase}`);
+} else if (process.env.VERCEL) {
+  // Better to fail the build than to ship a bundle pointed at localhost.
+  throw new Error(
+    "[build-web] On Vercel but could not determine the API base URL. " +
+      "Set EXPO_PUBLIC_API_BASE in the Vercel project's environment variables.",
+  );
+}
 
 const run = (cmd, cwd) =>
   execSync(cmd, {

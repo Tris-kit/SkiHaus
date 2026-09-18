@@ -4,3 +4,6 @@
 .env*.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Local SQLite file used for offline dev
+.local.db
