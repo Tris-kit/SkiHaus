@@ -15,9 +15,18 @@ export function isMailConfigured(): boolean {
 
 type Mail = { to: string; subject: string; text: string; html?: string };
 
+// Sender of record. Overridable via MAIL_FROM, but the default is a real
+// address on a domain we own rather than Resend's shared onboarding sender —
+// that one only delivers to the Resend account holder, so with it in place
+// every invite to a housemate silently vanishes.
+//
+// spwit.com must be verified in Resend (SPF + DKIM records) before this will
+// send. See RELEASING.md.
+const DEFAULT_FROM = "SkiHaus <skihaus@spwit.com>";
+
 export async function sendMail({ to, subject, text, html }: Mail): Promise<void> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM ?? "SkiHaus <onboarding@resend.dev>";
+  const from = process.env.MAIL_FROM ?? DEFAULT_FROM;
 
   if (!key) {
     console.log(

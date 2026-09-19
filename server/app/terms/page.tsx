@@ -39,8 +39,7 @@ export default function TermsPage() {
 
         <h2>Contact</h2>
         <p>
-          {/* TODO: replace before the first App Store submission. */}
-          <a href="mailto:hello@example.com">hello@example.com</a>
+          <a href="mailto:skihaus@spwit.com">skihaus@spwit.com</a>
         </p>
       </div>
     </main>

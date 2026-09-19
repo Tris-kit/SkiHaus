@@ -52,9 +52,7 @@ export default function PrivacyPage() {
 
         <h2>Contact</h2>
         <p>
-          {/* TODO: replace before the first App Store submission — Apple
-              rejects a privacy policy without a working contact route. */}
-          <a href="mailto:hello@example.com">hello@example.com</a>
+          <a href="mailto:skihaus@spwit.com">skihaus@spwit.com</a>
         </p>
       </div>
     </main>

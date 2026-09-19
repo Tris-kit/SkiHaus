@@ -56,9 +56,23 @@ identifier is `com.tristan.skihaus`.
    `build-web.mjs` reach `../mobile` to export the app.
 3. Add the Turso integration, or set `TURSO_DATABASE_URL` and
    `TURSO_AUTH_TOKEN` by hand (Production **and** Preview).
-4. Add `RESEND_API_KEY` and `MAIL_FROM`. Optional at first — without them,
-   sign-in links appear in the Vercel function logs instead of being emailed,
-   and `/api/health` reports `mail: false`.
+4. **Set up Resend — not optional.** Registration confirms the address by
+   email, so with no mail configured nobody can finish signing up.
+
+   1. In Resend, **add and verify the `spwit.com` domain**. Resend gives you
+      SPF and DKIM records to add at your DNS host; verification usually
+      lands within the hour.
+   2. Set `RESEND_API_KEY` and `MAIL_FROM="SkiHaus <skihaus@spwit.com>"` in
+      Vercel (Production **and** Preview).
+
+   Do not ship with Resend's shared `onboarding@resend.dev` sender. It only
+   delivers to the Resend account holder's own address, so it looks like it
+   works while you test on yourself and then silently drops every invite you
+   send a housemate.
+
+   Worth considering: sending from a subdomain (`skihaus@mail.spwit.com`)
+   keeps this app's delivery reputation separate from whatever else
+   `spwit.com` sends, so a bounce storm here can't hurt Split's mail.
 5. Set the Production Branch to `main`.
 6. **Turn off "Auto-assign Custom Production Domains"** — but not yet. This is
    the staging model: a push to `main` builds and *stages* at a unique URL
