@@ -15,6 +15,7 @@
 
 import { authenticate, createEmailToken, createSession, sessionPayload, setSessionCookie } from "@/lib/auth";
 import { HttpError, body, handle, json, originFrom, unauthorized } from "@/lib/http";
+import { claimPendingInvites } from "@/lib/invites";
 import { sendMail, verifyEmail } from "@/lib/mail";
 import { clientIp, limitOrThrow } from "@/lib/rateLimit";
 import { email as parseEmail, str } from "@/lib/validate";
@@ -48,6 +49,11 @@ export async function POST(req: Request) {
       });
       throw new HttpError(403, "Confirm your email first — we've sent you a fresh link.");
     }
+
+    // Pick up anything addressed to this (now proven) email since last time —
+    // an invite sent while they were already a user, say. Cheap: one indexed
+    // lookup that almost always returns nothing.
+    await claimPendingInvites(result.user);
 
     const sessionToken = await createSession(result.user.id, req.headers.get("user-agent"));
     const session = await sessionPayload(result.user);

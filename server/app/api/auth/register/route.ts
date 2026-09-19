@@ -43,7 +43,15 @@ export async function POST(req: Request) {
     const user = await upsertUserByEmail(email, name);
     await setPassword(user.id, password);
 
-    const { token, minutes } = await createEmailToken(email, "verify");
+    // Registering from an invite link: carry the invite through confirmation
+    // so the person lands in the house rather than on an empty home screen
+    // wondering where it went. An invite *addressed* to them doesn't need
+    // this — claimPendingInvites() applies it on confirmation — but an open
+    // link has no email to match on, so the token has to remember it.
+    const inviteToken = optStr(raw.inviteToken, "Invite", 200);
+    const next = inviteToken ? `/join/${encodeURIComponent(inviteToken)}` : null;
+
+    const { token, minutes } = await createEmailToken(email, "verify", next);
     await sendMail({
       to: email,
       ...verifyEmail(`${originFrom(req)}/join/${token}`, Math.round(minutes / 60)),

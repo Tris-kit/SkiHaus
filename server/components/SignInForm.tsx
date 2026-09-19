@@ -89,7 +89,9 @@ export function SignInForm({
         await api("/api/auth/login", { email, password });
         await joinAndGo();
       } else if (step === "create") {
-        await api("/api/auth/register", { email, password, name });
+        // inviteToken rides along so the confirmation link comes back to
+        // /join/<invite> and drops them straight into the house.
+        await api("/api/auth/register", { email, password, name, inviteToken });
         setStep("verify");
       }
     } catch (err) {

@@ -259,9 +259,20 @@ export async function consumeEmailToken(
   if (!row) return null;
 
   const user = await upsertUserByEmail(String(row.email));
-  // Any of these three arrived by email, so all three prove control of the
+  // Any of these arrived by email, so all of them prove control of the
   // address — including a reset, which is the point of resetting by email.
   await markEmailVerified(user.id);
+
+  // Now that the address is proven, apply anything addressed to it. This is
+  // what puts someone straight into a house when a manager invited them
+  // before they had an account. Imported lazily to keep auth.ts and
+  // invites.ts from importing each other.
+  try {
+    const { claimPendingInvites } = await import("./invites");
+    await claimPendingInvites(user);
+  } catch (e) {
+    console.error("[auth] claiming invites failed", e);
+  }
 
   return {
     user,

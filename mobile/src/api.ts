@@ -255,6 +255,21 @@ export const createInvite = (
   input: { email?: string | null; role: Role; shareBps?: number; maxUses?: number },
 ) => post<{ url: string; role: Role; email: string | null }>(`/api/houses/${houseId}/invites`, input);
 
+export type PendingInvite = {
+  /** null for an open link that anyone can use. */
+  email: string | null;
+  role: Role;
+  shareBps: number;
+  createdAt: number;
+  expiresAt: number;
+  maxUses: number;
+  usedCount: number;
+  revokedAt: number | null;
+};
+
+export const listInvites = (houseId: string) =>
+  get<{ invites: PendingInvite[] }>(`/api/houses/${houseId}/invites`);
+
 // --- money ------------------------------------------------------------------
 
 export const listExpenses = (houseId: string) =>

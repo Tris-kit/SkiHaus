@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { Share, Text, View } from "react-native";
-import { createInvite, listMembers, updateMember } from "../api";
+import { createInvite, listInvites, listMembers, updateMember } from "../api";
 import { useAction, useLoad } from "../hooks";
 import { colors, spacing } from "../theme";
 import { Avatar, Banner, Button, Card, Field, Loading, RolePill, Row, Screen, SectionHeader } from "../ui";
@@ -25,17 +25,30 @@ export function PeopleScreen({
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const members = useLoad(() => listMembers(houseId), [houseId]);
+  // Only a manager may read these; asking as a member would 403 on every open.
+  const invites = useLoad(
+    () => (isAdmin ? listInvites(houseId) : Promise.resolve({ invites: [] })),
+    [houseId, isAdmin],
+  );
   const action = useAction();
 
+  // Live and unclaimed. A used-up or revoked invite is history, not a to-do.
+  const pending = (invites.data?.invites ?? []).filter(
+    (i) => i.revokedAt === null && i.expiresAt > Date.now() && i.usedCount < i.maxUses,
+  );
+
   function invite() {
-    void action.run(async () => {
-      const res = await createInvite(houseId, {
-        email: inviteEmail.trim() || null,
-        role: inviteRole,
-      });
-      setInviteUrl(res.url);
-      setInviteEmail("");
-    });
+    void action.run(
+      async () => {
+        const res = await createInvite(houseId, {
+          email: inviteEmail.trim() || null,
+          role: inviteRole,
+        });
+        setInviteUrl(res.url);
+        setInviteEmail("");
+      },
+      invites.reload,
+    );
   }
 
   function cycleRole(userId: string, current: Role) {
@@ -115,7 +128,16 @@ export function PeopleScreen({
               hint="With an email we send the invite. Without one you get a link to paste into the group text."
             />
 
-            <Button title="Create invite" onPress={invite} busy={action.busy} />
+            <Button
+              title={inviteEmail.trim() ? "Send invite" : "Create a link"}
+              onPress={invite}
+              busy={action.busy}
+            />
+
+            <Text style={{ fontSize: 12, color: colors.textFaint, marginTop: spacing(1.5), lineHeight: 18 }}>
+              An invite sent to an email applies itself the moment that person
+              confirms their address — whether or not they ever open the link.
+            </Text>
 
             {inviteUrl && (
               <View style={{ marginTop: spacing(2) }}>
@@ -131,6 +153,27 @@ export function PeopleScreen({
               </View>
             )}
           </Card>
+
+          {pending.length > 0 && (
+            <>
+              <SectionHeader>Waiting to join · {pending.length}</SectionHeader>
+              <Card>
+                {pending.map((inv, i) => (
+                  <Row
+                    key={`${inv.email ?? "link"}-${inv.createdAt}`}
+                    label={inv.email ?? "Open link"}
+                    sub={
+                      inv.email
+                        ? `Joins automatically once they confirm this address`
+                        : `${inv.usedCount} of ${inv.maxUses} used · anyone with the link`
+                    }
+                    value={<RolePill role={inv.role} />}
+                    last={i === pending.length - 1}
+                  />
+                ))}
+              </Card>
+            </>
+          )}
         </>
       )}
 
